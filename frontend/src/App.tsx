@@ -1,4 +1,5 @@
 import './App.css'
+import { Link } from "react-router";
 
 function App() {
   return (
@@ -7,9 +8,9 @@ function App() {
         <div>
           <h1>Landing Page</h1>
         </div>
-        <button className="link">
-          Create Event
-        </button>
+        <Link to="/createEvent" className="link">
+          Create an Event
+        </Link>
       </section>
     </>
   )
