@@ -1,12 +1,13 @@
-.counter {
+.link {
   font-size: 16px;
-  padding: 5px 10px;
+  padding: 15px 20px;
   border-radius: 5px;
   color: var(--accent);
   background: var(--accent-bg);
   border: 2px solid transparent;
   transition: border-color 0.3s;
   margin-bottom: 24px;
+  text-decoration: none;
 
   &:hover {
     border-color: var(--accent-border);
