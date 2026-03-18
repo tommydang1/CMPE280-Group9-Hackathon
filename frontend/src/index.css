@@ -96,7 +96,7 @@ p {
 }
 
 code,
-.counter {
+.link {
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
