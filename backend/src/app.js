@@ -12,7 +12,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://cmpe-280-group9-hackathon-hegm.vercel.app/",
+      "https://cmpe-280-group9-hackathon-hegm.vercel.app",
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type"],
