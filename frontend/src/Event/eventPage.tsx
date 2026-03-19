@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import {
   Avatar,
@@ -284,7 +284,7 @@ export default function EventPage() {
           </Box>
         ))}
         {hours.map((h) => (
-          <>
+          <Fragment key={h}>
             <Typography
               key={`l${h}`}
               variant="caption"
@@ -343,7 +343,7 @@ export default function EventPage() {
                 </Tooltip>
               )
             })}
-          </>
+          </Fragment>
         ))}
       </Box>
     </Box>
