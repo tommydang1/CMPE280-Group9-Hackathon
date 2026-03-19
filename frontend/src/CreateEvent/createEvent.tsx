@@ -13,8 +13,8 @@ import {
 } from '@mui/material'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
+// const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 export default function CreateEventPage() {
   const navigate = useNavigate()

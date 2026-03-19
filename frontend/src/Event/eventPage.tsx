@@ -18,8 +18,8 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
+// const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 interface Event {
   id: number
