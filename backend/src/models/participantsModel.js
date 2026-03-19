@@ -29,7 +29,15 @@ const participantsModel = {
     const query = `SELECT * FROM participants WHERE event_id = $1`;
     const result = await pool.query(query, [event_id]);
     return result.rows;
-  }
+  },
+  // Update participant name
+  updateParticipant: async (id, username) => {
+    const result = await pool.query(
+      "UPDATE participants SET username = $1 WHERE id = $2 RETURNING *",
+      [username, id],
+    );
+    return result.rows[0];
+  },
 };
 
 module.exports = participantsModel;

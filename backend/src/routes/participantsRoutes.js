@@ -21,5 +21,5 @@ router.post("/", participantsController.createParticipant);
  * @apiSuccess {Object[]} participants List of participants
  */
 router.get("/event/:event_id", participantsController.getParticipantsByEvent);
-
+router.put("/:id", participantsController.updateParticipant);
 module.exports = router;

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router'
 import {
   Avatar,
   Box,
@@ -19,31 +19,32 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
 
+const API = 'http://localhost:5001/api'
+
+interface Event {
+  id: number
+  title: string
+  description: string
+  start_time: string
+  end_time: string
+}
+
 interface Participant {
-  name: string
-  availability: Set<string>
+  id: number
+  username: string
+  event_id: number
 }
 
-const MOCK_EVENT = {
-  id: 'richard-pham',
-  name: 'Richard Pham',
-  dateRange: { start: '2026-03-18', end: '2026-03-28' },
-  timeRange: { start: 9, end: 17 },
-}
-
-const getDates = (start: string, end: string) => {
-  const dates: string[] = []
-  const cur = new Date(start)
-  const last = new Date(end)
-  while (cur <= last) {
-    dates.push(cur.toISOString().slice(0, 10))
-    cur.setDate(cur.getDate() + 1)
-  }
-  return dates
+interface Timeslot {
+  id: number
+  participant_id: number
+  start_time: string
+  username: string
 }
 
 const fmtHour = (h: number) =>
   h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`
+
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
     weekday: 'short',
@@ -53,135 +54,314 @@ const fmtDate = (d: string) =>
 
 export default function EventPage() {
   const navigate = useNavigate()
-  const event = MOCK_EVENT
-  const dates = getDates(event.dateRange.start, event.dateRange.end)
-  const hours = Array.from(
-    { length: event.timeRange.end - event.timeRange.start },
-    (_, i) => event.timeRange.start + i,
-  )
+  const { eventID } = useParams()
 
+  const [event, setEvent] = useState<Event | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
-  const [currentName, setCurrentName] = useState('')
+  const [timeslots, setTimeslots] = useState<Timeslot[]>([])
+  const [
+    currentParticipant,
+    setCurrentParticipant,
+  ] = useState<Participant | null>(null)
   const [tempName, setTempName] = useState('')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [joined, setJoined] = useState(false)
+  const [editingName, setEditingName] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [dragAdding, setDragAdding] = useState(true)
   const [dragStart, setDragStart] = useState<string | null>(null)
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [joined, setJoined] = useState(false)
-  const [editingName, setEditingName] = useState(false)
 
-  const eventUrl = `${window.location.origin}/event/${event.id}`
+  // Derive selected slots directly from timeslots — no useEffect needed
+  const selected = new Set(
+    timeslots
+      .filter((t) => t.participant_id === currentParticipant?.id)
+      .map((t) => new Date(t.start_time).toISOString().slice(0, 13)),
+  )
+
+  // Derive dates and hours from event timestamps
+  const dates: string[] = []
+  const hours: number[] = []
+
+  if (event) {
+    const cur = new Date(event.start_time)
+    const last = new Date(event.end_time)
+    while (cur <= last) {
+      dates.push(cur.toISOString().slice(0, 10))
+      cur.setDate(cur.getDate() + 1)
+    }
+    const startHour = new Date(event.start_time).getHours()
+    const endHour = new Date(event.end_time).getHours()
+    for (let h = startHour; h < endHour; h++) hours.push(h)
+  }
+
+  useEffect(() => {
+    if (!eventID) return
+    fetch(`${API}/events/${eventID}`)
+      .then((r) => r.json())
+      .then((data) => setEvent(data.event ?? data))
+
+    fetch(`${API}/participants/event/${eventID}`)
+      .then((r) => r.json())
+      .then((data) => setParticipants(data.participants ?? data))
+
+    fetch(`${API}/timeslots/event/${eventID}`)
+      .then((r) => r.json())
+      .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
+  }, [eventID])
+
+  const slotKey = (date: string, hour: number) =>
+    `${date}T${String(hour).padStart(2, '0')}`
 
   const slotCount: Record<string, number> = {}
-  participants.forEach((p) =>
-    p.availability.forEach((s) => {
-      slotCount[s] = (slotCount[s] ?? 0) + 1
-    }),
-  )
+  timeslots.forEach((t) => {
+    if (!t.start_time) return
+    const d = new Date(t.start_time)
+    if (isNaN(d.getTime())) return
+    const key = d.toISOString().slice(0, 13)
+    slotCount[key] = (slotCount[key] ?? 0) + 1
+  })
+
   const maxCount = Math.max(0, ...Object.values(slotCount))
 
-  const saveSlots = (newSelected: Set<string>) => {
-    if (!currentName) return
-    setParticipants((prev) => {
-      const idx = prev.findIndex(
-        (p) => p.name.toLowerCase() === currentName.toLowerCase(),
-      )
-      const updated = { name: currentName, availability: newSelected }
-      return idx !== -1
-        ? prev.map((p, i) => (i === idx ? updated : p))
-        : [...prev, updated]
+  const getSlotIndex = (slot: string) => {
+    const [date, hourStr] = slot.split('T')
+    return {
+      dateIdx: dates.indexOf(date),
+      hourIdx: hours.indexOf(parseInt(hourStr)),
+    }
+  }
+
+  const getSlotsInRect = (s1: string, s2: string) => {
+    const p1 = getSlotIndex(s1)
+    const p2 = getSlotIndex(s2)
+    const minD = Math.min(p1.dateIdx, p2.dateIdx),
+      maxD = Math.max(p1.dateIdx, p2.dateIdx)
+    const minH = Math.min(p1.hourIdx, p2.hourIdx),
+      maxH = Math.max(p1.hourIdx, p2.hourIdx)
+    const slots: string[] = []
+    for (let i = minD; i <= maxD; i++)
+      for (let j = minH; j <= maxH; j++) slots.push(slotKey(dates[i], hours[j]))
+    return slots
+  }
+  const handleSaveName = async () => {
+    if (!tempName.trim() || !currentParticipant) return
+    const res = await fetch(`${API}/participants/${currentParticipant.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: tempName.trim() }),
     })
-  }
-
-  const handleJoin = () => {
-    if (!tempName.trim()) return
-    const name = tempName.trim()
-    setCurrentName(name)
-    setJoined(true)
-    const existing = participants.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase(),
+    const data = await res.json()
+    console.log('update name response:', data) // check this
+    setCurrentParticipant((prev) =>
+      prev ? { ...prev, username: tempName.trim() } : prev,
     )
-    if (existing) setSelected(new Set(existing.availability))
-  }
-
-  const handleSaveName = () => {
     setParticipants((prev) =>
       prev.map((p) =>
-        p.name.toLowerCase() === currentName.toLowerCase()
-          ? { ...p, name: tempName.trim() }
+        p.id === currentParticipant.id
+          ? { ...p, username: tempName.trim() }
           : p,
       ),
     )
-    setCurrentName(tempName.trim())
     setEditingName(false)
   }
 
-  const getSlotIndex = (slot: string) => {
-    const [date, hour] = slot.split('|')
-    const dateIdx = dates.indexOf(date)
-    const hourIdx = hours.indexOf(parseInt(hour))
-    return { dateIdx, hourIdx }
+  const previewSlots =
+    dragging && dragStart && dragEnd ? getSlotsInRect(dragStart, dragEnd) : []
+
+  const handleJoin = async () => {
+    if (!tempName.trim() || !event) return
+    const res = await fetch(`${API}/participants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: tempName.trim(), event_id: event.id }),
+    })
+    const data = await res.json()
+    console.log('join response:', data) // check what it returns
+    const participant = data.participant ?? data
+    setCurrentParticipant(participant)
+    setParticipants((prev) =>
+      prev.find((p) => p.id === participant.id) ? prev : [...prev, participant],
+    )
+    setJoined(true)
   }
 
-  const getSlotsInRectangle = (slot1: string, slot2: string) => {
-    const pos1 = getSlotIndex(slot1)
-    const pos2 = getSlotIndex(slot2)
+  const applySlots = async (slots: string[], adding: boolean) => {
+    if (!currentParticipant || !event) return
 
-    const minDate = Math.min(pos1.dateIdx, pos2.dateIdx)
-    const maxDate = Math.max(pos1.dateIdx, pos2.dateIdx)
-    const minHour = Math.min(pos1.hourIdx, pos2.hourIdx)
-    const maxHour = Math.max(pos1.hourIdx, pos2.hourIdx)
+    // Update local state immediately so UI doesn't disappear
+    setTimeslots((prev) => {
+      if (adding) {
+        const newSlots = slots
+          .filter(
+            (s) =>
+              !prev.some(
+                (t) =>
+                  t.participant_id === currentParticipant.id &&
+                  new Date(t.start_time).toISOString().slice(0, 13) === s,
+              ),
+          )
+          .map((s) => {
+            const [date, hourStr] = s.split('T')
+            return {
+              id: Math.random(), // temp id
+              participant_id: currentParticipant.id,
+              event_id: event.id,
+              start_time: `${date}T${hourStr}:00:00.000Z`,
+              username: currentParticipant.username,
+            }
+          })
+        return [...prev, ...newSlots]
+      } else {
+        return prev.filter((t) => {
+          const key = new Date(t.start_time).toISOString().slice(0, 13)
+          return !(
+            t.participant_id === currentParticipant.id && slots.includes(key)
+          )
+        })
+      }
+    })
 
-    const slots: string[] = []
-    for (let i = minDate; i <= maxDate; i++) {
-      for (let j = minHour; j <= maxHour; j++) {
-        slots.push(`${dates[i]}|${hours[j]}`)
+    // Then try to save to API in background
+    if (adding) {
+      for (const s of slots) {
+        const [date, hourStr] = s.split('T')
+        const start_time = new Date(`${date}T${hourStr}:00:00`).toISOString()
+        try {
+          await fetch(`${API}/timeslots`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              participant_id: currentParticipant.id,
+              event_id: event.id,
+              start_time,
+            }),
+          })
+        } catch (err) {
+          console.error('timeslot error:', err)
+        }
       }
     }
-    return slots
   }
 
-  const toggleSlotRange = (slotList: string[], adding: boolean) => {
-    if (!currentName) return
-    setSelected((prev) => {
-      const next = new Set(prev)
-      slotList.forEach((slot) => {
-        if (adding) next.add(slot)
-        else next.delete(slot)
-      })
-      saveSlots(next)
-      return next
-    })
-  }
-
-  const getPreviewSlots = (): string[] => {
-    if (!dragging || !dragStart || !dragEnd) return []
-    return getSlotsInRectangle(dragStart, dragEnd)
-  }
-
-  const cellColor = (slot: string) => {
-    const mine = selected.has(slot)
-    const count = slotCount[slot] ?? 0
+  const cellColor = (key: string) => {
+    const mine = selected.has(key)
+    const count = slotCount[key] ?? 0
     if (mine && count > 1) return '#4ade80'
     if (mine) return '#818cf8'
     if (count > 0) return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.3})`
     return '#f1f5f9'
   }
 
-  const isCellInPreview = (slot: string): boolean => {
-    return getPreviewSlots().includes(slot)
-  }
+  const whoIsAvailable = (key: string) =>
+    timeslots
+      .filter((t) => new Date(t.start_time).toISOString().slice(0, 13) === key)
+      .map((t) => t.username)
+      .join(', ')
+
+  const renderGrid = (interactive: boolean) => (
+    <Box sx={{ overflowX: 'auto' }}>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
+          gap: '1px',
+          userSelect: 'none',
+        }}
+      >
+        <Box />
+        {dates.map((d) => (
+          <Box key={d} textAlign="center" sx={{ pb: 1 }}>
+            <Typography variant="caption" fontWeight={600} display="block">
+              {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+              })}
+            </Typography>
+            <Typography variant="caption" fontWeight={600} display="block">
+              {new Date(d + 'T00:00:00').getDate()}
+            </Typography>
+          </Box>
+        ))}
+        {hours.map((h) => (
+          <>
+            <Typography
+              key={`l${h}`}
+              variant="caption"
+              color="text.secondary"
+              sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
+            >
+              {fmtHour(h)}
+            </Typography>
+            {dates.map((d) => {
+              const key = slotKey(d, h)
+              const who = whoIsAvailable(key)
+              const inPreview = previewSlots.includes(key)
+              return (
+                <Tooltip
+                  key={key}
+                  title={who || ''}
+                  arrow
+                  disableHoverListener={!who}
+                >
+                  <Box
+                    onMouseDown={
+                      interactive
+                        ? () => {
+                            if (!currentParticipant) return
+                            setDragAdding(!selected.has(key))
+                            setDragStart(key)
+                            setDragging(true)
+                          }
+                        : undefined
+                    }
+                    onMouseEnter={
+                      interactive
+                        ? () => {
+                            if (dragging) setDragEnd(key)
+                          }
+                        : undefined
+                    }
+                    sx={{
+                      height: 36,
+                      borderRadius: 1,
+                      bgcolor: cellColor(key),
+                      border: inPreview
+                        ? '2px solid #6366f1'
+                        : '1px solid #e2e8f0',
+                      boxSizing: 'border-box',
+                      cursor:
+                        interactive && currentParticipant
+                          ? 'pointer'
+                          : 'default',
+                      '&:hover':
+                        interactive && currentParticipant
+                          ? { opacity: 0.8 }
+                          : {},
+                    }}
+                  />
+                </Tooltip>
+              )
+            })}
+          </>
+        ))}
+      </Box>
+    </Box>
+  )
+
+  if (!event)
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography>Loading...</Typography>
+      </Box>
+    )
 
   return (
     <Box
       sx={{ minHeight: '100vh', bgcolor: '#f0f4f8', pb: 6 }}
       onMouseUp={() => {
-        if (dragging && dragStart && dragEnd) {
-          const slotsInRect = getSlotsInRectangle(dragStart, dragEnd)
-          toggleSlotRange(slotsInRect, dragAdding)
-        }
+        if (dragging && dragStart && dragEnd)
+          applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
         setDragging(false)
         setDragStart(null)
         setDragEnd(null)
@@ -212,7 +392,7 @@ export default function EventPage() {
             variant="contained"
             startIcon={<ShareIcon />}
             onClick={() => {
-              navigator.clipboard.writeText(eventUrl)
+              navigator.clipboard.writeText(window.location.href)
               setCopied(true)
             }}
             sx={{
@@ -282,17 +462,20 @@ export default function EventPage() {
             {/* Event info */}
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3, mb: 3 }}>
               <Typography variant="h4" fontWeight={700} color="primary" mb={1}>
-                {event.name}
+                {event.title}
               </Typography>
+              {event.description && (
+                <Typography color="text.secondary" mb={1}>
+                  {event.description}
+                </Typography>
+              )}
               <Stack direction="row" spacing={2}>
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <CalendarTodayIcon
                     sx={{ fontSize: 16, color: 'text.secondary' }}
                   />
                   <Typography variant="body2" color="text.secondary">
-                    {fmtDate(event.dateRange.start)}
-                    {event.dateRange.start !== event.dateRange.end &&
-                      ` – ${fmtDate(event.dateRange.end)}`}
+                    {fmtDate(event.start_time)} – {fmtDate(event.end_time)}
                   </Typography>
                 </Stack>
                 <Stack direction="row" spacing={0.5} alignItems="center">
@@ -300,8 +483,8 @@ export default function EventPage() {
                     sx={{ fontSize: 16, color: 'text.secondary' }}
                   />
                   <Typography variant="body2" color="text.secondary">
-                    {fmtHour(event.timeRange.start)} –{' '}
-                    {fmtHour(event.timeRange.end)}
+                    {fmtHour(new Date(event.start_time).getHours())} –{' '}
+                    {fmtHour(new Date(event.end_time).getHours())}
                   </Typography>
                 </Stack>
               </Stack>
@@ -309,222 +492,52 @@ export default function EventPage() {
 
             {/* Grid */}
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
-              {currentName && (
-                <Stack
-                  direction="row"
-                  justifyContent="space-between"
-                  alignItems="flex-start"
-                  mb={2}
-                >
-                  <Box>
-                    <Typography variant="h6" fontWeight={600}>
-                      Select Your Availability
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Click and drag to mark when you're available
-                    </Typography>
-                  </Box>
-                  <Stack direction="row" spacing={1.5}>
-                    {[
-                      ['#818cf8', 'Your availability'],
-                      // ['#4ade80', 'Group overlap'],
-                    ].map(([color, label]) => (
-                      <Stack
-                        key={label}
-                        direction="row"
-                        spacing={0.5}
-                        alignItems="center"
-                      >
+              <Stack gap="16px">
+                {currentParticipant && (
+                  <>
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      alignItems="flex-start"
+                    >
+                      <Box>
+                        <Typography variant="h6" fontWeight={600}>
+                          Select Your Availability
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Click and drag to mark when you're available
+                        </Typography>
+                      </Box>
+                      <Stack direction="row" spacing={0.5} alignItems="center">
                         <Box
                           sx={{
                             width: 14,
                             height: 14,
                             borderRadius: 0.5,
-                            bgcolor: color,
+                            bgcolor: '#818cf8',
                           }}
                         />
                         <Typography variant="caption" color="text.secondary">
-                          {label}
+                          Your availability
                         </Typography>
                       </Stack>
-                    ))}
-                  </Stack>
-                </Stack>
-              )}
-
-              <Stack
-                gap="16px"
-              >
-                {currentName && (
-                  <>
-                    {/* User Availability */}
-                    <Box
-                      sx={{ overflowX: 'auto' }}>
-                      <Box
-                        sx={{
-                          display: 'grid',
-                          // Change this line in the grid
-                          gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
-                          gap: '1px',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <Box />
-                        {dates.map((d) => (
-                          <Box key={d} textAlign="center" sx={{ pb: 1 }}>
-                            <Typography
-                              variant="caption"
-                              fontWeight={600}
-                              display="block"
-                            >
-                              {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-                                weekday: 'short',
-                                month: 'short',
-                              })}
-                            </Typography>
-                            <Typography
-                              variant="caption"
-                              fontWeight={600}
-                              display="block"
-                            >
-                              {new Date(d + 'T00:00:00').getDate()}
-                            </Typography>
-                          </Box>
-                        ))}
-                        {hours.map((h) => (
-                          <>
-                            <Typography
-                              key={`l${h}`}
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
-                            >
-                              {fmtHour(h)}
-                            </Typography>
-                            {dates.map((d) => {
-                              const slot = `${d}|${h}`
-                              return (
-                                <Box
-                                  onMouseDown={() => {
-                                    if (!currentName) return
-                                    const adding = !selected.has(slot)
-                                    setDragAdding(adding)
-                                    setDragStart(slot)
-                                    setDragging(true)
-                                  }}
-                                  onMouseEnter={() => {
-                                    if (dragging) setDragEnd(slot)
-                                  }}
-                                  sx={{
-                                    height: 36,
-                                    borderRadius: 1,
-                                    bgcolor: cellColor(slot),
-                                    border: isCellInPreview(slot)
-                                      ? '2px solid #6366f1'
-                                      : '1px solid #e2e8f0',
-                                    boxSizing: 'border-box',
-                                  }}
-                                />
-                              )
-                            })}
-                          </>
-                        ))}
-                      </Box>
-                    </Box>
-
-                    <Divider aria-hidden="true" />
+                    </Stack>
+                    {renderGrid(true)}
+                    <Divider />
                   </>
                 )}
-
                 <Typography variant="h6" fontWeight={600}>
                   Group Availability
                 </Typography>
-                {/* Group Availability */}
-                <Box
-                  sx={{ overflowX: 'auto' }}>
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      // Change this line in the grid
-                      gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
-                      gap: '1px',
-                      userSelect: 'none',
-                    }}
-                  >
-                    <Box />
-                    {dates.map((d) => (
-                      <Box key={d} textAlign="center" sx={{ pb: 1 }}>
-                        <Typography
-                          variant="caption"
-                          fontWeight={600}
-                          display="block"
-                        >
-                          {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                          })}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={600}
-                          display="block"
-                        >
-                          {new Date(d + 'T00:00:00').getDate()}
-                        </Typography>
-                      </Box>
-                    ))}
-                    {hours.map((h) => (
-                      <>
-                        <Typography
-                          key={`l${h}`}
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
-                        >
-                          {fmtHour(h)}
-                        </Typography>
-                        {dates.map((d) => {
-                          const slot = `${d}|${h}`
-                          const who = participants
-                            .filter((p) => p.availability.has(slot))
-                            .map((p) => p.name)
-                            .join(', ')
-                          return (
-                            <Tooltip
-                              key={slot}
-                              title={who || ''}
-                              arrow
-                              disableHoverListener={!who}
-                            >
-                              <Box
-                                sx={{
-                                  height: 36,
-                                  borderRadius: 1,
-                                  bgcolor: cellColor(slot),
-                                  border: isCellInPreview(slot)
-                                    ? '2px solid #6366f1'
-                                    : '1px solid #e2e8f0',
-                                  boxSizing: 'border-box',
-                                  cursor: currentName ? 'pointer' : 'default',
-                                  '&:hover': currentName ? { opacity: 0.8 } : {},
-                                }}
-                              />
-                            </Tooltip>
-                          )
-                        })}
-                      </>
-                    ))}
-                  </Box>
-                </Box>
+                {renderGrid(false)}
               </Stack>
             </Paper>
           </Box>
 
           {/* Sidebar */}
           <Box sx={{ width: { xs: '100%', md: 260 }, flexShrink: 0 }}>
-            {/* Signed in */}
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, mb: 2 }}>
-              {currentName ? (
+              {currentParticipant ? (
                 <>
                   <Stack
                     direction="row"
@@ -540,13 +553,15 @@ export default function EventPage() {
                         fontSize: 16,
                       }}
                     >
-                      {currentName[0].toUpperCase()}
+                      {currentParticipant.username[0].toUpperCase()}
                     </Avatar>
                     <Box>
                       <Typography variant="caption" color="text.secondary">
                         Signed in as
                       </Typography>
-                      <Typography fontWeight={600}>{currentName}</Typography>
+                      <Typography fontWeight={600}>
+                        {currentParticipant.username}
+                      </Typography>
                     </Box>
                   </Stack>
                   {editingName ? (
@@ -575,7 +590,7 @@ export default function EventPage() {
                       size="small"
                       onClick={() => {
                         setEditingName(true)
-                        setTempName(currentName)
+                        setTempName(currentParticipant.username)
                       }}
                       sx={{ textTransform: 'none', borderRadius: 2 }}
                     >
@@ -590,7 +605,6 @@ export default function EventPage() {
               )}
             </Paper>
 
-            {/* Participants */}
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={2}>
                 <GroupIcon color="primary" />
@@ -612,7 +626,7 @@ export default function EventPage() {
                 <Stack spacing={1}>
                   {participants.map((p) => (
                     <Box
-                      key={p.name}
+                      key={p.id}
                       sx={{
                         display: 'flex',
                         alignItems: 'center',
@@ -620,7 +634,7 @@ export default function EventPage() {
                         p: 1.5,
                         borderRadius: 2,
                         bgcolor:
-                          p.name.toLowerCase() === currentName.toLowerCase()
+                          p.id === currentParticipant?.id
                             ? '#eef2ff'
                             : 'transparent',
                       }}
@@ -633,7 +647,7 @@ export default function EventPage() {
                           fontSize: 13,
                         }}
                       >
-                        {p.name[0].toUpperCase()}
+                        {p.username[0].toUpperCase()}
                       </Avatar>
                       <Box>
                         <Stack
@@ -642,18 +656,20 @@ export default function EventPage() {
                           alignItems="center"
                         >
                           <Typography variant="body2" fontWeight={600}>
-                            {p.name}
+                            {p.username}
                           </Typography>
-                          {p.name.toLowerCase() ===
-                            currentName.toLowerCase() && (
-                              <Typography variant="caption" color="primary">
-                                (You)
-                              </Typography>
-                            )}
+                          {p.id === currentParticipant?.id && (
+                            <Typography variant="caption" color="primary">
+                              (You)
+                            </Typography>
+                          )}
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
-                          {p.availability.size} slot
-                          {p.availability.size !== 1 ? 's' : ''} selected
+                          {
+                            timeslots.filter((t) => t.participant_id === p.id)
+                              .length
+                          }{' '}
+                          slots selected
                         </Typography>
                       </Box>
                     </Box>

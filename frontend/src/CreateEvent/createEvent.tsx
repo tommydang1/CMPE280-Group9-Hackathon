@@ -14,22 +14,47 @@ import {
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 
+const API = 'http://localhost:5001/api'
+
 export default function CreateEventPage() {
   const navigate = useNavigate()
-  const [eventName, setEventName] = useState('')
+  const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [startTime, setStartTime] = useState(9)
   const [endTime, setEndTime] = useState(17)
-
-  const handleCreate = () => {
-    const eventId = eventName.toLowerCase().replace(/ /g, '-')
-    navigate(`/event/${eventId}`)
-  }
+  const [loading, setLoading] = useState(false)
 
   const timeLabel = (i: number) =>
     i === 0 ? '12 AM' : i < 12 ? `${i} AM` : i === 12 ? '12 PM' : `${i - 12} PM`
+
+  const toTimestamp = (date: string, hour: number) =>
+    new Date(`${date}T${String(hour).padStart(2, '0')}:00:00`).toISOString()
+
+  const handleCreate = async () => {
+    if (!title.trim() || !startDate || !endDate) return
+    setLoading(true)
+    try {
+      const res = await fetch(`${API}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          start_time: toTimestamp(startDate, startTime),
+          end_time: toTimestamp(endDate, endTime),
+        }),
+      })
+      const { event } = await res.json()
+      console.log('event response:', event) //
+      navigate(`/event/${event.id}`)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Box
@@ -40,7 +65,6 @@ export default function CreateEventPage() {
       }}
     >
       <Container maxWidth="md" sx={{ py: 6 }}>
-        {/* Header */}
         <Box textAlign="center" mb={5}>
           <Typography
             variant="h2"
@@ -58,7 +82,6 @@ export default function CreateEventPage() {
           </Typography>
         </Box>
 
-        {/* Card */}
         <Box
           sx={{
             bgcolor: 'white',
@@ -67,7 +90,6 @@ export default function CreateEventPage() {
             border: '1px solid #e5e7eb',
           }}
         >
-          {/* Card Header */}
           <Box sx={{ px: 4, py: 3, borderBottom: '1px solid #e5e7eb' }}>
             <Typography variant="h5" fontWeight={600}>
               Create New Event
@@ -77,13 +99,12 @@ export default function CreateEventPage() {
             </Typography>
           </Box>
 
-          {/* Card Body */}
           <Stack spacing={3} sx={{ px: 4, py: 4 }}>
             <TextField
-              label="Event Name *"
+              label="Event Title *"
               placeholder="e.g., Team Meeting, Study Session"
-              value={eventName}
-              onChange={(e) => setEventName(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               fullWidth
             />
 
@@ -99,7 +120,6 @@ export default function CreateEventPage() {
 
             <Divider />
 
-            {/* Date Range */}
             <Box>
               <Stack direction="row" alignItems="center" spacing={1} mb={2}>
                 <CalendarMonthIcon sx={{ color: '#2563eb' }} />
@@ -127,7 +147,6 @@ export default function CreateEventPage() {
 
             <Divider />
 
-            {/* Time Range */}
             <Box>
               <Stack direction="row" alignItems="center" spacing={1} mb={2}>
                 <AccessTimeIcon sx={{ color: '#9333ea' }} />
@@ -173,6 +192,7 @@ export default function CreateEventPage() {
               onClick={handleCreate}
               fullWidth
               size="large"
+              disabled={loading || !title.trim() || !startDate || !endDate}
               sx={{
                 py: 1.5,
                 background: 'linear-gradient(90deg, #2563eb, #9333ea)',
@@ -184,9 +204,10 @@ export default function CreateEventPage() {
                 '&:hover': {
                   background: 'linear-gradient(90deg, #1d4ed8, #7e22ce)',
                 },
+                '&:disabled': { opacity: 0.6, color: 'white' },
               }}
             >
-              Create Event
+              {loading ? 'Creating...' : 'Create Event'}
             </Button>
           </Stack>
         </Box>
