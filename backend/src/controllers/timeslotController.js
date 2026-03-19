@@ -1,19 +1,27 @@
 const timeslotModel = require("../models/timeslotModel");
 
 const timeslotController = {
-  // Create timeslot for participant
+  // Add a timeslot
   addTimeslot: async (req, res) => {
     try {
-      const { participant_id, start_time } = req.body;
-      const slot = await timeslotModel.addTimeslot(participant_id, start_time);
+      const { participant_id, event_id, start_time } = req.body;
+
+      if (!participant_id || !event_id || !start_time) {
+        return res.status(400).json({
+          success: false,
+          error: "participant_id, event_id, and start_time are required"
+        });
+      }
+
+      const slot = await timeslotModel.addTimeslot(participant_id, event_id, start_time);
       res.status(201).json({ success: true, slot });
     } catch (error) {
       console.error(error);
-      res.status(400).json({ success: false, error: error.message });
+      res.status(500).json({ success: false, error: error.message });
     }
   },
 
-  // Get timeslots by event ID
+  // Get all timeslots for an event
   getTimeslotsByEvent: async (req, res) => {
     try {
       const { event_id } = req.params;
