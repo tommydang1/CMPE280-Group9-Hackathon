@@ -22,7 +22,3 @@ Thumbs.db
 # Optional: IDE files
 .vscode/
 .idea/
-
-# Node package files (optional)
-package.json
-package-lock.json
