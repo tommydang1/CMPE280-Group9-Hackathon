@@ -10,10 +10,22 @@ const app = express();
 // cors MUST be before helmet
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://cmpe-280-group9-hackathon-hegm.vercel.app",
-    ],
+    origin: (origin, callback) => {
+      const allowed = [
+        "http://localhost:5173",
+        "https://cmpe-280-group9-hackathon-hegm.vercel.app",
+      ];
+      // Allow all vercel preview URLs
+      if (
+        !origin ||
+        allowed.includes(origin) ||
+        origin.endsWith(".vercel.app")
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type"],
   }),
