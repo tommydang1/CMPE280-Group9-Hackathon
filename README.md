@@ -22,5 +22,5 @@ npm run dev
 ```
 ### Backend
 ```
-TODO: backend not implemented yet
+npm start
 ```

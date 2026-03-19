@@ -18,8 +18,8 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
-const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
-// const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+
+const API = 'http://localhost:5001/api'
 
 interface Event {
   id: number
@@ -46,7 +46,7 @@ const fmtHour = (h: number) =>
   h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`
 
 const fmtDate = (d: string) =>
-  new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+  new Date(d).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
@@ -90,9 +90,19 @@ export default function EventPage() {
       dates.push(cur.toISOString().slice(0, 10))
       cur.setDate(cur.getDate() + 1)
     }
-    const startHour = new Date(event.start_time).getHours()
-    const endHour = new Date(event.end_time).getHours()
-    for (let h = startHour; h < endHour; h++) hours.push(h)
+    // const startHour = new Date(event.start_time).getHours()
+    // const endHour = new Date(event.end_time).getHours()
+    const startHour = Number(event.start_time.split('T')[1].split(':')[0])
+    const endHour = Number(event.end_time.split('T')[1].split(':')[0])
+    for (let h = startHour; h != endHour; h++) {
+      if (h == 24) {
+        h = 0;
+        if (h == endHour) {
+          break;
+        }
+      }
+      hours.push(h)
+    }
   }
 
   useEffect(() => {
@@ -119,6 +129,7 @@ export default function EventPage() {
     const d = new Date(t.start_time)
     if (isNaN(d.getTime())) return
     const key = d.toISOString().slice(0, 13)
+    // Count all participants' timeslots (including current user)
     slotCount[key] = (slotCount[key] ?? 0) + 1
   })
 
@@ -222,7 +233,7 @@ export default function EventPage() {
       }
     })
 
-    // Then try to save to API in background
+    // Then try to save/delete from API in background
     if (adding) {
       for (const s of slots) {
         const [date, hourStr] = s.split('T')
@@ -241,6 +252,28 @@ export default function EventPage() {
           console.error('timeslot error:', err)
         }
       }
+    } else {
+      // Delete deselected timeslots from database
+      for (const s of slots) {
+        const [date, hourStr] = s.split('T')
+        const start_time = new Date(`${date}T${hourStr}:00:00`).toISOString()
+        try {
+          // Find the timeslot ID to delete
+          const timeslot = timeslots.find(
+            (t) =>
+              t.participant_id === currentParticipant.id &&
+              new Date(t.start_time).toISOString() === start_time,
+          )
+          if (timeslot) {
+            await fetch(`${API}/timeslots/${timeslot.id}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+            })
+          }
+        } catch (err) {
+          console.error('timeslot deletion error:', err)
+        }
+      }
     }
   }
 
@@ -251,6 +284,13 @@ export default function EventPage() {
     if (mine) return '#818cf8'
     if (count > 0) return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.3})`
     return '#f1f5f9'
+  }
+
+  const groupCellColor = (key: string) => {
+    const count = slotCount[key] ?? 0
+    if (count === 0) return '#f1f5f9'
+    const percentage = count / maxCount
+    return `rgba(99,102,241,${0.15 + percentage * 0.85})`
   }
 
   const whoIsAvailable = (key: string) =>
@@ -296,36 +336,40 @@ export default function EventPage() {
             {dates.map((d) => {
               const key = slotKey(d, h)
               const who = whoIsAvailable(key)
+              const count = slotCount[key] ?? 0
+              const percentage = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0
               const inPreview = previewSlots.includes(key)
+              const bgColor = interactive ? cellColor(key) : groupCellColor(key)
+              const label = interactive ? who : `${count} available${maxCount > 0 ? ` (${percentage}%)` : ''}`
               return (
                 <Tooltip
                   key={key}
-                  title={who || ''}
+                  title={label}
                   arrow
-                  disableHoverListener={!who}
+                  disableHoverListener={!who && !count}
                 >
                   <Box
                     onMouseDown={
                       interactive
                         ? () => {
-                            if (!currentParticipant) return
-                            setDragAdding(!selected.has(key))
-                            setDragStart(key)
-                            setDragging(true)
-                          }
+                          if (!currentParticipant) return
+                          setDragAdding(!selected.has(key))
+                          setDragStart(key)
+                          setDragging(true)
+                        }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                            if (dragging) setDragEnd(key)
-                          }
+                          if (dragging) setDragEnd(key)
+                        }
                         : undefined
                     }
                     sx={{
                       height: 36,
                       borderRadius: 1,
-                      bgcolor: cellColor(key),
+                      bgcolor: bgColor,
                       border: inPreview
                         ? '2px solid #6366f1'
                         : '1px solid #e2e8f0',
