@@ -66,6 +66,8 @@ export default function EventPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [dragging, setDragging] = useState(false)
   const [dragAdding, setDragAdding] = useState(true)
+  const [dragStart, setDragStart] = useState<string | null>(null)
+  const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [joined, setJoined] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -93,16 +95,6 @@ export default function EventPage() {
     })
   }
 
-  const toggleSlot = (slot: string, adding: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (adding) next.add(slot)
-      else next.delete(slot)
-      saveSlots(next)
-      return next
-    })
-  }
-
   const handleJoin = () => {
     if (!tempName.trim()) return
     const name = tempName.trim()
@@ -126,6 +118,49 @@ export default function EventPage() {
     setEditingName(false)
   }
 
+  const getSlotIndex = (slot: string) => {
+    const [date, hour] = slot.split('|')
+    const dateIdx = dates.indexOf(date)
+    const hourIdx = hours.indexOf(parseInt(hour))
+    return { dateIdx, hourIdx }
+  }
+
+  const getSlotsInRectangle = (slot1: string, slot2: string) => {
+    const pos1 = getSlotIndex(slot1)
+    const pos2 = getSlotIndex(slot2)
+
+    const minDate = Math.min(pos1.dateIdx, pos2.dateIdx)
+    const maxDate = Math.max(pos1.dateIdx, pos2.dateIdx)
+    const minHour = Math.min(pos1.hourIdx, pos2.hourIdx)
+    const maxHour = Math.max(pos1.hourIdx, pos2.hourIdx)
+
+    const slots: string[] = []
+    for (let i = minDate; i <= maxDate; i++) {
+      for (let j = minHour; j <= maxHour; j++) {
+        slots.push(`${dates[i]}|${hours[j]}`)
+      }
+    }
+    return slots
+  }
+
+  const toggleSlotRange = (slotList: string[], adding: boolean) => {
+    if (!currentName) return
+    setSelected((prev) => {
+      const next = new Set(prev)
+      slotList.forEach((slot) => {
+        if (adding) next.add(slot)
+        else next.delete(slot)
+      })
+      saveSlots(next)
+      return next
+    })
+  }
+
+  const getPreviewSlots = (): string[] => {
+    if (!dragging || !dragStart || !dragEnd) return []
+    return getSlotsInRectangle(dragStart, dragEnd)
+  }
+
   const cellColor = (slot: string) => {
     const mine = selected.has(slot)
     const count = slotCount[slot] ?? 0
@@ -135,10 +170,22 @@ export default function EventPage() {
     return '#f1f5f9'
   }
 
+  const isCellInPreview = (slot: string): boolean => {
+    return getPreviewSlots().includes(slot)
+  }
+
   return (
     <Box
       sx={{ minHeight: '100vh', bgcolor: '#f0f4f8', pb: 6 }}
-      onMouseUp={() => setDragging(false)}
+      onMouseUp={() => {
+        if (dragging && dragStart && dragEnd) {
+          const slotsInRect = getSlotsInRectangle(dragStart, dragEnd)
+          toggleSlotRange(slotsInRect, dragAdding)
+        }
+        setDragging(false)
+        setDragStart(null)
+        setDragEnd(null)
+      }}
     >
       {/* Top bar */}
       <Box
@@ -262,129 +309,214 @@ export default function EventPage() {
 
             {/* Grid */}
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3 }}>
+              {currentName && (
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="flex-start"
+                  mb={2}
+                >
+                  <Box>
+                    <Typography variant="h6" fontWeight={600}>
+                      Select Your Availability
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Click and drag to mark when you're available
+                    </Typography>
+                  </Box>
+                  <Stack direction="row" spacing={1.5}>
+                    {[
+                      ['#818cf8', 'Your availability'],
+                      // ['#4ade80', 'Group overlap'],
+                    ].map(([color, label]) => (
+                      <Stack
+                        key={label}
+                        direction="row"
+                        spacing={0.5}
+                        alignItems="center"
+                      >
+                        <Box
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 0.5,
+                            bgcolor: color,
+                          }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {label}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Stack>
+              )}
+
               <Stack
-                direction="row"
-                justifyContent="space-between"
-                alignItems="flex-start"
-                mb={2}
+                gap="16px"
               >
-                <Box>
-                  <Typography variant="h6" fontWeight={600}>
-                    Select Your Availability
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Click and drag to mark when you're available
-                  </Typography>
-                </Box>
-                <Stack direction="row" spacing={1.5}>
-                  {[
-                    ['#818cf8', 'Your availability'],
-                    ['#4ade80', 'Group overlap'],
-                  ].map(([color, label]) => (
-                    <Stack
-                      key={label}
-                      direction="row"
-                      spacing={0.5}
-                      alignItems="center"
-                    >
+                {currentName && (
+                  <>
+                    {/* User Availability */}
+                    <Box
+                      sx={{ overflowX: 'auto' }}>
                       <Box
                         sx={{
-                          width: 14,
-                          height: 14,
-                          borderRadius: 0.5,
-                          bgcolor: color,
+                          display: 'grid',
+                          // Change this line in the grid
+                          gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
+                          gap: '1px',
+                          userSelect: 'none',
                         }}
-                      />
-                      <Typography variant="caption" color="text.secondary">
-                        {label}
-                      </Typography>
-                    </Stack>
-                  ))}
-                </Stack>
-              </Stack>
-
-              <Box sx={{ overflowX: 'auto' }}>
-                <Box
-                  sx={{
-                    display: 'grid',
-                    // Change this line in the grid
-                    gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
-                    gap: '1px',
-                    userSelect: 'none',
-                  }}
-                >
-                  <Box />
-                  {dates.map((d) => (
-                    <Box key={d} textAlign="center" sx={{ pb: 1 }}>
-                      <Typography
-                        variant="caption"
-                        fontWeight={600}
-                        display="block"
                       >
-                        {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                        })}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        fontWeight={600}
-                        display="block"
-                      >
-                        {new Date(d + 'T00:00:00').getDate()}
-                      </Typography>
+                        <Box />
+                        {dates.map((d) => (
+                          <Box key={d} textAlign="center" sx={{ pb: 1 }}>
+                            <Typography
+                              variant="caption"
+                              fontWeight={600}
+                              display="block"
+                            >
+                              {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+                                weekday: 'short',
+                                month: 'short',
+                              })}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              fontWeight={600}
+                              display="block"
+                            >
+                              {new Date(d + 'T00:00:00').getDate()}
+                            </Typography>
+                          </Box>
+                        ))}
+                        {hours.map((h) => (
+                          <>
+                            <Typography
+                              key={`l${h}`}
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
+                            >
+                              {fmtHour(h)}
+                            </Typography>
+                            {dates.map((d) => {
+                              const slot = `${d}|${h}`
+                              return (
+                                <Box
+                                  onMouseDown={() => {
+                                    if (!currentName) return
+                                    const adding = !selected.has(slot)
+                                    setDragAdding(adding)
+                                    setDragStart(slot)
+                                    setDragging(true)
+                                  }}
+                                  onMouseEnter={() => {
+                                    if (dragging) setDragEnd(slot)
+                                  }}
+                                  sx={{
+                                    height: 36,
+                                    borderRadius: 1,
+                                    bgcolor: cellColor(slot),
+                                    border: isCellInPreview(slot)
+                                      ? '2px solid #6366f1'
+                                      : '1px solid #e2e8f0',
+                                    boxSizing: 'border-box',
+                                  }}
+                                />
+                              )
+                            })}
+                          </>
+                        ))}
+                      </Box>
                     </Box>
-                  ))}
-                  {hours.map((h) => (
-                    <>
-                      <Typography
-                        key={`l${h}`}
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
-                      >
-                        {fmtHour(h)}
-                      </Typography>
-                      {dates.map((d) => {
-                        const slot = `${d}|${h}`
-                        const who = participants
-                          .filter((p) => p.availability.has(slot))
-                          .map((p) => p.name)
-                          .join(', ')
-                        return (
-                          <Tooltip
-                            key={slot}
-                            title={who || ''}
-                            arrow
-                            disableHoverListener={!who}
-                          >
-                            <Box
-                              onMouseDown={() => {
-                                if (!currentName) return
-                                const adding = !selected.has(slot)
-                                setDragAdding(adding)
-                                setDragging(true)
-                                toggleSlot(slot, adding)
-                              }}
-                              onMouseEnter={() => {
-                                if (dragging) toggleSlot(slot, dragAdding)
-                              }}
-                              sx={{
-                                height: 36,
-                                borderRadius: 1,
-                                bgcolor: cellColor(slot),
-                                border: '1px solid #e2e8f0',
-                                cursor: currentName ? 'pointer' : 'default',
-                                '&:hover': currentName ? { opacity: 0.8 } : {},
-                              }}
-                            />
-                          </Tooltip>
-                        )
-                      })}
-                    </>
-                  ))}
+
+                    <Divider aria-hidden="true" />
+                  </>
+                )}
+
+                <Typography variant="h6" fontWeight={600}>
+                  Group Availability
+                </Typography>
+                {/* Group Availability */}
+                <Box
+                  sx={{ overflowX: 'auto' }}>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      // Change this line in the grid
+                      gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
+                      gap: '1px',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <Box />
+                    {dates.map((d) => (
+                      <Box key={d} textAlign="center" sx={{ pb: 1 }}>
+                        <Typography
+                          variant="caption"
+                          fontWeight={600}
+                          display="block"
+                        >
+                          {new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                          })}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          fontWeight={600}
+                          display="block"
+                        >
+                          {new Date(d + 'T00:00:00').getDate()}
+                        </Typography>
+                      </Box>
+                    ))}
+                    {hours.map((h) => (
+                      <>
+                        <Typography
+                          key={`l${h}`}
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
+                        >
+                          {fmtHour(h)}
+                        </Typography>
+                        {dates.map((d) => {
+                          const slot = `${d}|${h}`
+                          const who = participants
+                            .filter((p) => p.availability.has(slot))
+                            .map((p) => p.name)
+                            .join(', ')
+                          return (
+                            <Tooltip
+                              key={slot}
+                              title={who || ''}
+                              arrow
+                              disableHoverListener={!who}
+                            >
+                              <Box
+                                sx={{
+                                  height: 36,
+                                  borderRadius: 1,
+                                  bgcolor: cellColor(slot),
+                                  border: isCellInPreview(slot)
+                                    ? '2px solid #6366f1'
+                                    : '1px solid #e2e8f0',
+                                  boxSizing: 'border-box',
+                                  cursor: currentName ? 'pointer' : 'default',
+                                  '&:hover': currentName ? { opacity: 0.8 } : {},
+                                }}
+                              />
+                            </Tooltip>
+                          )
+                        })}
+                      </>
+                    ))}
+                  </Box>
                 </Box>
-              </Box>
+              </Stack>
             </Paper>
           </Box>
 
@@ -514,10 +646,10 @@ export default function EventPage() {
                           </Typography>
                           {p.name.toLowerCase() ===
                             currentName.toLowerCase() && (
-                            <Typography variant="caption" color="primary">
-                              (You)
-                            </Typography>
-                          )}
+                              <Typography variant="caption" color="primary">
+                                (You)
+                              </Typography>
+                            )}
                         </Stack>
                         <Typography variant="caption" color="text.secondary">
                           {p.availability.size} slot
