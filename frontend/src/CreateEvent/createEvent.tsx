@@ -51,7 +51,7 @@ export default function CreateEventPage() {
               WebkitTextFillColor: 'transparent',
             }}
           >
-            When2Meet
+            LinkUp
           </Typography>
           <Typography color="text.secondary">
             Create an event to find the perfect time to meet

@@ -1,15 +1,13 @@
-import './Event.css'
-
-function Event() {
+function NotFound() {
     return (
         <>
             <section id="center">
                 <div>
-                    <h1>Event Page</h1>
+                    <h1>Page Not Found</h1>
                 </div>
             </section>
         </>
     )
 }
 
-export default Event
+export default NotFound
