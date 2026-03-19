@@ -19,7 +19,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
 
-const API = 'http://localhost:5001/api'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 interface Event {
   id: number
