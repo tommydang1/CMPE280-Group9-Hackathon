@@ -76,7 +76,7 @@ export default function EventPage() {
   const selected = new Set(
     timeslots
       .filter((t) => t.participant_id === currentParticipant?.id)
-      .map((t) => new Date(t.start_time).toISOString().slice(0, 13)),
+      .map((t) => t.start_time.slice(0, 13)),
   )
 
   // Derive dates and hours from event timestamps
@@ -90,10 +90,8 @@ export default function EventPage() {
       dates.push(cur.toISOString().slice(0, 10))
       cur.setDate(cur.getDate() + 1)
     }
-    // const startHour = new Date(event.start_time).getHours()
-    // const endHour = new Date(event.end_time).getHours()
-    const startHour = Number(event.start_time.split('T')[1].split(':')[0])
-    const endHour = Number(event.end_time.split('T')[1].split(':')[0])
+    const startHour = new Date(event.start_time).getHours()
+    const endHour = new Date(event.end_time).getHours()
     for (let h = startHour; h != endHour; h++) {
       if (h == 24) {
         h = 0;
@@ -126,10 +124,8 @@ export default function EventPage() {
   const slotCount: Record<string, number> = {}
   timeslots.forEach((t) => {
     if (!t.start_time) return
-    const d = new Date(t.start_time)
-    if (isNaN(d.getTime())) return
-    const key = d.toISOString().slice(0, 13)
-    // Count all participants' timeslots (including current user)
+    // Extract date and hour directly from the start_time string without timezone conversion
+    const key = t.start_time.slice(0, 13)
     slotCount[key] = (slotCount[key] ?? 0) + 1
   })
 
@@ -209,23 +205,22 @@ export default function EventPage() {
               !prev.some(
                 (t) =>
                   t.participant_id === currentParticipant.id &&
-                  new Date(t.start_time).toISOString().slice(0, 13) === s,
+                  t.start_time.slice(0, 13) === s,
               ),
           )
           .map((s) => {
-            const [date, hourStr] = s.split('T')
             return {
               id: Math.random(), // temp id
               participant_id: currentParticipant.id,
               event_id: event.id,
-              start_time: `${date}T${hourStr}:00:00.000Z`,
+              start_time: `${s}:00:00Z`,
               username: currentParticipant.username,
             }
           })
         return [...prev, ...newSlots]
       } else {
         return prev.filter((t) => {
-          const key = new Date(t.start_time).toISOString().slice(0, 13)
+          const key = t.start_time.slice(0, 13)
           return !(
             t.participant_id === currentParticipant.id && slots.includes(key)
           )
@@ -236,8 +231,7 @@ export default function EventPage() {
     // Then try to save/delete from API in background
     if (adding) {
       for (const s of slots) {
-        const [date, hourStr] = s.split('T')
-        const start_time = new Date(`${date}T${hourStr}:00:00`).toISOString()
+        const start_time = `${s}:00:00Z`
         try {
           await fetch(`${API}/timeslots`, {
             method: 'POST',
@@ -255,14 +249,12 @@ export default function EventPage() {
     } else {
       // Delete deselected timeslots from database
       for (const s of slots) {
-        const [date, hourStr] = s.split('T')
-        const start_time = new Date(`${date}T${hourStr}:00:00`).toISOString()
         try {
-          // Find the timeslot ID to delete
+          // Find the timeslot ID to delete by matching the key
           const timeslot = timeslots.find(
             (t) =>
               t.participant_id === currentParticipant.id &&
-              new Date(t.start_time).toISOString() === start_time,
+              t.start_time.slice(0, 13) === s,
           )
           if (timeslot) {
             await fetch(`${API}/timeslots/${timeslot.id}`, {
@@ -295,7 +287,7 @@ export default function EventPage() {
 
   const whoIsAvailable = (key: string) =>
     timeslots
-      .filter((t) => new Date(t.start_time).toISOString().slice(0, 13) === key)
+      .filter((t) => t.start_time.slice(0, 13) === key)
       .map((t) => t.username)
       .join(', ')
 
