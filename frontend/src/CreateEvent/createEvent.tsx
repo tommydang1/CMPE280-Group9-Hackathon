@@ -11,6 +11,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
@@ -18,6 +19,8 @@ const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
 
 export default function CreateEventPage() {
   const navigate = useNavigate()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
@@ -60,8 +63,9 @@ export default function CreateEventPage() {
     <Box
       sx={{
         minHeight: '100vh',
-        background:
-          'linear-gradient(135deg, #eff6ff 0%, #fff 50%, #faf5ff 100%)',
+        background: isDark 
+          ? 'linear-gradient(135deg, #121212 0%, #1e1e1e 50%, #121212 100%)'
+          : 'linear-gradient(135deg, #eff6ff 0%, #fff 50%, #faf5ff 100%)',
       }}
     >
       <Container maxWidth="md" sx={{ py: 6 }}>
@@ -84,13 +88,14 @@ export default function CreateEventPage() {
 
         <Box
           sx={{
-            bgcolor: 'white',
+            bgcolor: 'background.paper',
             borderRadius: 3,
             boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-            border: '1px solid #e5e7eb',
+            border: 1,
+            borderColor: 'divider',
           }}
         >
-          <Box sx={{ px: 4, py: 3, borderBottom: '1px solid #e5e7eb' }}>
+          <Box sx={{ px: 4, py: 3, borderBottom: 1, borderColor: 'divider' }}>
             <Typography variant="h5" fontWeight={600}>
               Create New Event
             </Typography>

@@ -5,10 +5,13 @@ import {
   Container,
   Typography,
 } from '@mui/material'
+import { useTheme } from '@mui/material/styles'
 import { CalendarPlus, Sparkles } from 'lucide-react'
 
 export default function App() {
   const navigate = useNavigate()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
 
   const navigateCreateEvent = () => {
     navigate(`/createEvent`)
@@ -23,8 +26,9 @@ export default function App() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background:
-          'linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab)',
+        background: isDark
+          ? 'linear-gradient(-45deg, #4a2119, #4a172b, #0a3d52, #0d4a3e)'
+          : 'linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab)',
         overflow: 'hidden',
       }}
     >
