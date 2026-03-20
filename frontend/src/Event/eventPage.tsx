@@ -43,8 +43,14 @@ interface Timeslot {
   username: string
 }
 
-const fmtHour = (h: number) =>
-  h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`
+const fmtSlot = (slot: string) => {
+  const [h, m] = slot.split(':').map(Number)
+  const period = h < 12 ? 'AM' : 'PM'
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return m === 0
+    ? `${hour} ${period}`
+    : `${hour}:${String(m).padStart(2, '0')} ${period}`
+}
 
 const fmtDate = (d: string) =>
   new Date(d).toLocaleDateString('en-US', {
@@ -75,16 +81,9 @@ export default function EventPage() {
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // Derive selected slots directly from timeslots — no useEffect needed
-  const selected = new Set(
-    timeslots
-      .filter((t) => t.participant_id === currentParticipant?.id)
-      .map((t) => t.start_time.slice(0, 13)),
-  )
-
-  // Derive dates and hours from event timestamps
+  // Derive dates and 15-min slots from event
   const dates: string[] = []
-  const hours: number[] = []
+  const slots: string[] = []
 
   if (event) {
     const cur = new Date(event.start_time)
@@ -93,52 +92,52 @@ export default function EventPage() {
       dates.push(cur.toISOString().slice(0, 10))
       cur.setDate(cur.getDate() + 1)
     }
-    const startHour = new Date(event.start_time).getHours()
-    const endHour = new Date(event.end_time).getHours()
-    for (let h = startHour; h != endHour; h++) {
-      if (h == 24) {
-        h = 0
-        if (h == endHour) {
-          break
-        }
-      }
-      hours.push(h)
+    const startH = new Date(event.start_time).getHours()
+    const endH = new Date(event.end_time).getHours()
+    for (let h = startH; h < endH; h++) {
+      slots.push(`${String(h).padStart(2, '0')}:00`)
+      slots.push(`${String(h).padStart(2, '0')}:15`)
+      slots.push(`${String(h).padStart(2, '0')}:30`)
+      slots.push(`${String(h).padStart(2, '0')}:45`)
     }
+    slots.push(`${String(endH).padStart(2, '0')}:00`)
   }
+
+  // Derive selected from timeslots
+  const selected = new Set(
+    timeslots
+      .filter((t) => t.participant_id === currentParticipant?.id)
+      .map((t) => t.start_time.slice(0, 16)),
+  )
 
   useEffect(() => {
     if (!eventID) return
     fetch(`${API}/events/${eventID}`)
       .then((r) => r.json())
       .then((data) => setEvent(data.event ?? data))
-
     fetch(`${API}/participants/event/${eventID}`)
       .then((r) => r.json())
       .then((data) => setParticipants(data.participants ?? data))
-
     fetch(`${API}/timeslots/event/${eventID}`)
       .then((r) => r.json())
       .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
   }, [eventID])
 
-  const slotKey = (date: string, hour: number) =>
-    `${date}T${String(hour).padStart(2, '0')}`
+  const slotKey = (date: string, slot: string) => `${date}T${slot}`
 
   const slotCount: Record<string, number> = {}
   timeslots.forEach((t) => {
     if (!t.start_time) return
-    // Extract date and hour directly from the start_time string without timezone conversion
-    const key = t.start_time.slice(0, 13)
+    const key = t.start_time.slice(0, 16)
     slotCount[key] = (slotCount[key] ?? 0) + 1
   })
-
   const maxCount = Math.max(0, ...Object.values(slotCount))
 
   const getSlotIndex = (slot: string) => {
-    const [date, hourStr] = slot.split('T')
+    const [date, timePart] = slot.split('T')
     return {
       dateIdx: dates.indexOf(date),
-      hourIdx: hours.indexOf(parseInt(hourStr)),
+      slotIdx: slots.indexOf(timePart),
     }
   }
 
@@ -147,33 +146,13 @@ export default function EventPage() {
     const p2 = getSlotIndex(s2)
     const minD = Math.min(p1.dateIdx, p2.dateIdx),
       maxD = Math.max(p1.dateIdx, p2.dateIdx)
-    const minH = Math.min(p1.hourIdx, p2.hourIdx),
-      maxH = Math.max(p1.hourIdx, p2.hourIdx)
-    const slots: string[] = []
+    const minS = Math.min(p1.slotIdx, p2.slotIdx),
+      maxS = Math.max(p1.slotIdx, p2.slotIdx)
+    const result: string[] = []
     for (let i = minD; i <= maxD; i++)
-      for (let j = minH; j <= maxH; j++) slots.push(slotKey(dates[i], hours[j]))
-    return slots
-  }
-  const handleSaveName = async () => {
-    if (!tempName.trim() || !currentParticipant) return
-    const res = await fetch(`${API}/participants/${currentParticipant.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: tempName.trim() }),
-    })
-    const data = await res.json()
-    console.log('update name response:', data) // check this
-    setCurrentParticipant((prev) =>
-      prev ? { ...prev, username: tempName.trim() } : prev,
-    )
-    setParticipants((prev) =>
-      prev.map((p) =>
-        p.id === currentParticipant.id
-          ? { ...p, username: tempName.trim() }
-          : p,
-      ),
-    )
-    setEditingName(false)
+      for (let j = minS; j <= maxS; j++)
+        result.push(slotKey(dates[i], slots[j]))
+    return result
   }
 
   const previewSlots =
@@ -187,7 +166,6 @@ export default function EventPage() {
       body: JSON.stringify({ username: tempName.trim(), event_id: event.id }),
     })
     const data = await res.json()
-    console.log('join response:', data) // check what it returns
     const participant = data.participant ?? data
     setCurrentParticipant(participant)
     setParticipants((prev) =>
@@ -196,23 +174,43 @@ export default function EventPage() {
     setJoined(true)
   }
 
-  const applySlots = async (slots: string[], adding: boolean) => {
+  const handleSaveName = async () => {
+    if (!tempName.trim() || !currentParticipant) return
+    const res = await fetch(`${API}/participants/${currentParticipant.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: tempName.trim() }),
+    })
+    const data = await res.json()
+    console.log('update name response:', data)
+    setCurrentParticipant((prev) =>
+      prev ? { ...prev, username: tempName.trim() } : prev,
+    )
+    setParticipants((prev) =>
+      prev.map((p) =>
+        p.id === currentParticipant.id
+          ? { ...p, username: tempName.trim() }
+          : p,
+      ),
+    )
+    setEditingName(false)
+  }
+
+  const applySlots = async (slotsToApply: string[], adding: boolean) => {
     if (!currentParticipant || !event) return
 
     if (adding) {
-      const newSlotKeys = slots.filter((s) => !selected.has(s))
+      const newSlotKeys = slotsToApply.filter((s) => !selected.has(s))
       if (newSlotKeys.length === 0) return
 
-      // Optimistic update
       const optimisticSlots = newSlotKeys.map((s) => ({
-        id: -Math.random(), // negative = optimistic, not real
+        id: -Math.random(),
         participant_id: currentParticipant.id,
-        start_time: `${s}:00:00Z`,
+        start_time: `${s}:00Z`,
         username: currentParticipant.username,
       }))
       setTimeslots((prev) => [...prev, ...optimisticSlots])
 
-      // Save to API and replace optimistic with real
       for (const s of newSlotKeys) {
         try {
           const res = await fetch(`${API}/timeslots`, {
@@ -221,16 +219,15 @@ export default function EventPage() {
             body: JSON.stringify({
               participant_id: currentParticipant.id,
               event_id: event.id,
-              start_time: `${s}:00:00Z`,
+              start_time: `${s}:00Z`,
             }),
           })
           const data = await res.json()
-          if (data.slot ?? data.timeslot) {
-            const realSlot = data.slot ?? data.timeslot
-            // Replace optimistic slot with real one
+          const realSlot = data.slot ?? data.timeslot
+          if (realSlot) {
             setTimeslots((prev) =>
               prev.map((t) =>
-                t.start_time === `${s}:00:00Z` &&
+                t.start_time === `${s}:00Z` &&
                 t.participant_id === currentParticipant.id &&
                 t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
@@ -243,13 +240,12 @@ export default function EventPage() {
         }
       }
     } else {
-      const slotsToRemove = slots.filter((s) => selected.has(s))
+      const slotsToRemove = slotsToApply.filter((s) => selected.has(s))
       if (slotsToRemove.length === 0) return
 
-      // Remove from UI immediately
       setTimeslots((prev) =>
         prev.filter((t) => {
-          const key = t.start_time.slice(0, 13)
+          const key = t.start_time.slice(0, 16)
           return !(
             t.participant_id === currentParticipant.id &&
             slotsToRemove.includes(key)
@@ -257,13 +253,12 @@ export default function EventPage() {
         }),
       )
 
-      // Only DELETE slots with real IDs (positive)
       for (const s of slotsToRemove) {
         const timeslot = timeslots.find(
           (t) =>
             t.participant_id === currentParticipant.id &&
-            t.start_time.slice(0, 13) === s &&
-            t.id > 0, // only real slots
+            t.start_time.slice(0, 16) === s &&
+            t.id > 0,
         )
         if (timeslot) {
           await fetch(`${API}/timeslots/${timeslot.id}`, { method: 'DELETE' })
@@ -284,22 +279,39 @@ export default function EventPage() {
   const groupCellColor = (key: string) => {
     const count = slotCount[key] ?? 0
     if (count === 0) return isDark ? '#1e293b' : '#f1f5f9'
-    const percentage = count / maxCount
-    return `rgba(99,102,241,${0.15 + percentage * 0.85})`
+    return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.85})`
   }
 
   const whoIsAvailable = (key: string) =>
     timeslots
-      .filter((t) => t.start_time.slice(0, 13) === key)
+      .filter((t) => t.start_time.slice(0, 16) === key)
       .map((t) => t.username)
       .join(', ')
+
+  const getTopSlots = () =>
+    Object.entries(slotCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([slot, count]) => {
+        const [datePart, timePart] = slot.split('T')
+        const date = new Date(datePart + 'T00:00:00')
+        return {
+          label: `${date.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          })} at ${fmtSlot(timePart)}`,
+          count,
+          percentage: Math.round((count / participants.length) * 100),
+        }
+      })
 
   const renderGrid = (interactive: boolean) => (
     <Box sx={{ overflowX: 'auto' }}>
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `60px repeat(${dates.length}, minmax(80px, 1fr))`,
+          gridTemplateColumns: `64px repeat(${dates.length}, minmax(80px, 1fr))`,
           gap: '1px',
           userSelect: 'none',
         }}
@@ -318,18 +330,23 @@ export default function EventPage() {
             </Typography>
           </Box>
         ))}
-        {hours.map((h) => (
-          <Fragment key={h}>
+        {slots.map((s) => (
+          <Fragment key={s}>
             <Typography
-              key={`l${h}`}
               variant="caption"
               color="text.secondary"
-              sx={{ pt: '6px', pr: 1, textAlign: 'right' }}
+              sx={{
+                pt: '2px',
+                pr: 1,
+                textAlign: 'right',
+                fontSize: '0.65rem',
+                lineHeight: 1,
+              }}
             >
-              {fmtHour(h)}
+              {s.endsWith(':00') || s.endsWith(':30') ? fmtSlot(s) : ''}
             </Typography>
             {dates.map((d) => {
-              const key = slotKey(d, h)
+              const key = slotKey(d, s)
               const who = whoIsAvailable(key)
               const count = slotCount[key] ?? 0
               const percentage =
@@ -365,8 +382,8 @@ export default function EventPage() {
                         : undefined
                     }
                     sx={{
-                      height: 36,
-                      borderRadius: 1,
+                      height: 18,
+                      borderRadius: 0.5,
                       bgcolor: bgColor,
                       border: inPreview
                         ? '2px solid #6366f1'
@@ -526,8 +543,19 @@ export default function EventPage() {
                     sx={{ fontSize: 16, color: 'text.secondary' }}
                   />
                   <Typography variant="body2" color="text.secondary">
-                    {fmtHour(new Date(event.start_time).getHours())} –{' '}
-                    {fmtHour(new Date(event.end_time).getHours())}
+                    {fmtSlot(
+                      `${String(new Date(event.start_time).getHours()).padStart(
+                        2,
+                        '0',
+                      )}:00`,
+                    )}{' '}
+                    –{' '}
+                    {fmtSlot(
+                      `${String(new Date(event.end_time).getHours()).padStart(
+                        2,
+                        '0',
+                      )}:00`,
+                    )}
                   </Typography>
                 </Stack>
               </Stack>
@@ -573,6 +601,8 @@ export default function EventPage() {
                   Group Availability
                 </Typography>
                 {renderGrid(false)}
+
+                <Divider />
               </Stack>
             </Paper>
           </Box>
@@ -649,7 +679,7 @@ export default function EventPage() {
             </Paper>
 
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
-              <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <Stack direction="row" spacing={1} alignItems="center" mb={4}>
                 <GroupIcon color="primary" />
                 <Typography fontWeight={700}>
                   Participants ({participants.length})
@@ -717,6 +747,86 @@ export default function EventPage() {
                           slots selected
                         </Typography>
                       </Box>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+            </Paper>
+
+            {/* Top 5 Best Times — ADD HERE */}
+            <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, mt: 2 }}>
+              <Typography fontWeight={700} mb={2}>
+                Top 5 Best Times
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              {Object.keys(slotCount).length === 0 ? (
+                <Typography
+                  variant="body2"
+                  color="text.disabled"
+                  textAlign="center"
+                  py={2}
+                >
+                  No availability yet
+                </Typography>
+              ) : (
+                <Stack spacing={1}>
+                  {getTopSlots().map((slot, i) => (
+                    <Box
+                      key={i}
+                      sx={{
+                        p: 1.5,
+                        borderRadius: 2,
+                        bgcolor:
+                          i === 0 ? 'rgba(99,102,241,0.08)' : 'transparent',
+                        border:
+                          i === 0
+                            ? '1px solid #c7d2fe'
+                            : '1px solid transparent',
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        alignItems="center"
+                        mb={0.5}
+                      >
+                        <Typography
+                          fontWeight={700}
+                          color="primary"
+                          variant="caption"
+                        >
+                          #{i + 1}
+                        </Typography>
+                        <Typography variant="caption" fontWeight={600}>
+                          {slot.label}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <Box
+                          sx={{
+                            flex: 1,
+                            height: 5,
+                            borderRadius: 3,
+                            bgcolor: '#e2e8f0',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              height: '100%',
+                              width: `${slot.percentage}%`,
+                              bgcolor: '#6366f1',
+                              borderRadius: 3,
+                            }}
+                          />
+                        </Box>
+                        <Typography variant="caption" color="text.secondary">
+                          {slot.percentage}%
+                        </Typography>
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        {slot.count}/{participants.length} available
+                      </Typography>
                     </Box>
                   ))}
                 </Stack>
