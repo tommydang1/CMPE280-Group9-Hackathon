@@ -94,9 +94,9 @@ export default function EventPage() {
     const endHour = new Date(event.end_time).getHours()
     for (let h = startHour; h != endHour; h++) {
       if (h == 24) {
-        h = 0;
+        h = 0
         if (h == endHour) {
-          break;
+          break
         }
       }
       hours.push(h)
@@ -296,7 +296,7 @@ export default function EventPage() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: `72px repeat(${dates.length}, minmax(110px, 1fr))`,
+          gridTemplateColumns: `60px repeat(${dates.length}, minmax(80px, 1fr))`,
           gap: '1px',
           userSelect: 'none',
         }}
@@ -329,10 +329,13 @@ export default function EventPage() {
               const key = slotKey(d, h)
               const who = whoIsAvailable(key)
               const count = slotCount[key] ?? 0
-              const percentage = maxCount > 0 ? Math.round((count / maxCount) * 100) : 0
+              const percentage =
+                maxCount > 0 ? Math.round((count / maxCount) * 100) : 0
               const inPreview = previewSlots.includes(key)
               const bgColor = interactive ? cellColor(key) : groupCellColor(key)
-              const label = interactive ? who : `${count} available${maxCount > 0 ? ` (${percentage}%)` : ''}`
+              const label = interactive
+                ? who
+                : `${count} available${maxCount > 0 ? ` (${percentage}%)` : ''}`
               return (
                 <Tooltip
                   key={key}
@@ -344,18 +347,18 @@ export default function EventPage() {
                     onMouseDown={
                       interactive
                         ? () => {
-                          if (!currentParticipant) return
-                          setDragAdding(!selected.has(key))
-                          setDragStart(key)
-                          setDragging(true)
-                        }
+                            if (!currentParticipant) return
+                            setDragAdding(!selected.has(key))
+                            setDragStart(key)
+                            setDragging(true)
+                          }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                          if (dragging) setDragEnd(key)
-                        }
+                            if (dragging) setDragEnd(key)
+                          }
                         : undefined
                     }
                     sx={{
