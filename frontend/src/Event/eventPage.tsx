@@ -18,6 +18,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
+import { useTheme } from '@mui/material/styles'
 
 const API = 'http://localhost:5001/api'
 
@@ -55,6 +56,8 @@ const fmtDate = (d: string) =>
 export default function EventPage() {
   const navigate = useNavigate()
   const { eventID } = useParams()
+  const theme = useTheme()
+  const isDark = theme.palette.mode === 'dark'
 
   const [event, setEvent] = useState<Event | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -275,12 +278,12 @@ export default function EventPage() {
     if (mine && count > 1) return '#4ade80'
     if (mine) return '#818cf8'
     if (count > 0) return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.3})`
-    return '#f1f5f9'
+    return isDark ? '#1e293b' : '#f1f5f9'
   }
 
   const groupCellColor = (key: string) => {
     const count = slotCount[key] ?? 0
-    if (count === 0) return '#f1f5f9'
+    if (count === 0) return isDark ? '#1e293b' : '#f1f5f9'
     const percentage = count / maxCount
     return `rgba(99,102,241,${0.15 + percentage * 0.85})`
   }
@@ -367,7 +370,7 @@ export default function EventPage() {
                       bgcolor: bgColor,
                       border: inPreview
                         ? '2px solid #6366f1'
-                        : '1px solid #e2e8f0',
+                        : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       boxSizing: 'border-box',
                       cursor:
                         interactive && currentParticipant
@@ -397,7 +400,7 @@ export default function EventPage() {
 
   return (
     <Box
-      sx={{ minHeight: '100vh', bgcolor: '#f0f4f8', pb: 6 }}
+      sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: 6 }}
       onMouseUp={() => {
         if (dragging && dragStart && dragEnd)
           applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
@@ -409,8 +412,9 @@ export default function EventPage() {
       {/* Top bar */}
       <Box
         sx={{
-          bgcolor: 'white',
-          borderBottom: '1px solid #e5e7eb',
+          bgcolor: 'background.paper',
+          borderBottom: 1,
+          borderColor: 'divider',
           px: 3,
           py: 1.5,
         }}
@@ -674,7 +678,7 @@ export default function EventPage() {
                         borderRadius: 2,
                         bgcolor:
                           p.id === currentParticipant?.id
-                            ? '#eef2ff'
+                            ? (isDark ? 'rgba(99, 102, 241, 0.15)' : '#eef2ff')
                             : 'transparent',
                       }}
                     >
