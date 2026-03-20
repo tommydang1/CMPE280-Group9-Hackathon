@@ -17,5 +17,5 @@ router.post("/", timeslotController.addTimeslot);
  * @apiSuccess {Object[]} slots List of timeslots with participant usernames
  */
 router.get("/event/:event_id", timeslotController.getTimeslotsByEvent);
-
+router.delete("/:id", timeslotController.deleteTimeslot);
 module.exports = router;

@@ -1,3 +1,4 @@
+const pool = require("../config/db");
 const timeslotModel = require("../models/timeslotModel");
 
 const timeslotController = {
@@ -9,11 +10,15 @@ const timeslotController = {
       if (!participant_id || !event_id || !start_time) {
         return res.status(400).json({
           success: false,
-          error: "participant_id, event_id, and start_time are required"
+          error: "participant_id, event_id, and start_time are required",
         });
       }
 
-      const slot = await timeslotModel.addTimeslot(participant_id, event_id, start_time);
+      const slot = await timeslotModel.addTimeslot(
+        participant_id,
+        event_id,
+        start_time,
+      );
       res.status(201).json({ success: true, slot });
     } catch (error) {
       console.error(error);
@@ -31,7 +36,17 @@ const timeslotController = {
       console.error(error);
       res.status(500).json({ success: false, error: error.message });
     }
-  }
+  },
+  // delete overlapped timeslot
+  deleteTimeslot: async (req, res) => {
+    try {
+      const { id } = req.params;
+      await pool.query("DELETE FROM timeslot WHERE id = $1", [id]);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  },
 };
 
 module.exports = timeslotController;

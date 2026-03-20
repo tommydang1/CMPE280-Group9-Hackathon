@@ -199,74 +199,74 @@ export default function EventPage() {
   const applySlots = async (slots: string[], adding: boolean) => {
     if (!currentParticipant || !event) return
 
-    // Update local state immediately so UI doesn't disappear
-    setTimeslots((prev) => {
-      if (adding) {
-        const newSlots = slots
-          .filter(
-            (s) =>
-              !prev.some(
-                (t) =>
-                  t.participant_id === currentParticipant.id &&
-                  t.start_time.slice(0, 13) === s,
-              ),
-          )
-          .map((s) => {
-            return {
-              id: Math.random(), // temp id
-              participant_id: currentParticipant.id,
-              event_id: event.id,
-              start_time: `${s}:00:00Z`,
-              username: currentParticipant.username,
-            }
-          })
-        return [...prev, ...newSlots]
-      } else {
-        return prev.filter((t) => {
-          const key = t.start_time.slice(0, 13)
-          return !(
-            t.participant_id === currentParticipant.id && slots.includes(key)
-          )
-        })
-      }
-    })
-
-    // Then try to save/delete from API in background
     if (adding) {
-      for (const s of slots) {
-        const start_time = `${s}:00:00Z`
+      const newSlotKeys = slots.filter((s) => !selected.has(s))
+      if (newSlotKeys.length === 0) return
+
+      // Optimistic update
+      const optimisticSlots = newSlotKeys.map((s) => ({
+        id: -Math.random(), // negative = optimistic, not real
+        participant_id: currentParticipant.id,
+        start_time: `${s}:00:00Z`,
+        username: currentParticipant.username,
+      }))
+      setTimeslots((prev) => [...prev, ...optimisticSlots])
+
+      // Save to API and replace optimistic with real
+      for (const s of newSlotKeys) {
         try {
-          await fetch(`${API}/timeslots`, {
+          const res = await fetch(`${API}/timeslots`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               participant_id: currentParticipant.id,
               event_id: event.id,
-              start_time,
+              start_time: `${s}:00:00Z`,
             }),
           })
+          const data = await res.json()
+          if (data.slot ?? data.timeslot) {
+            const realSlot = data.slot ?? data.timeslot
+            // Replace optimistic slot with real one
+            setTimeslots((prev) =>
+              prev.map((t) =>
+                t.start_time === `${s}:00:00Z` &&
+                t.participant_id === currentParticipant.id &&
+                t.id < 0
+                  ? { ...realSlot, username: currentParticipant.username }
+                  : t,
+              ),
+            )
+          }
         } catch (err) {
           console.error('timeslot error:', err)
         }
       }
     } else {
-      // Delete deselected timeslots from database
-      for (const s of slots) {
-        try {
-          // Find the timeslot ID to delete by matching the key
-          const timeslot = timeslots.find(
-            (t) =>
-              t.participant_id === currentParticipant.id &&
-              t.start_time.slice(0, 13) === s,
+      const slotsToRemove = slots.filter((s) => selected.has(s))
+      if (slotsToRemove.length === 0) return
+
+      // Remove from UI immediately
+      setTimeslots((prev) =>
+        prev.filter((t) => {
+          const key = t.start_time.slice(0, 13)
+          return !(
+            t.participant_id === currentParticipant.id &&
+            slotsToRemove.includes(key)
           )
-          if (timeslot) {
-            await fetch(`${API}/timeslots/${timeslot.id}`, {
-              method: 'DELETE',
-              headers: { 'Content-Type': 'application/json' },
-            })
-          }
-        } catch (err) {
-          console.error('timeslot deletion error:', err)
+        }),
+      )
+
+      // Only DELETE slots with real IDs (positive)
+      for (const s of slotsToRemove) {
+        const timeslot = timeslots.find(
+          (t) =>
+            t.participant_id === currentParticipant.id &&
+            t.start_time.slice(0, 13) === s &&
+            t.id > 0, // only real slots
+        )
+        if (timeslot) {
+          await fetch(`${API}/timeslots/${timeslot.id}`, { method: 'DELETE' })
         }
       }
     }
@@ -678,7 +678,9 @@ export default function EventPage() {
                         borderRadius: 2,
                         bgcolor:
                           p.id === currentParticipant?.id
-                            ? (isDark ? 'rgba(99, 102, 241, 0.15)' : '#eef2ff')
+                            ? isDark
+                              ? 'rgba(99, 102, 241, 0.15)'
+                              : '#eef2ff'
                             : 'transparent',
                       }}
                     >
