@@ -271,15 +271,15 @@ export default function EventPage() {
     const mine = selected.has(key)
     const count = slotCount[key] ?? 0
     if (mine && count > 1) return '#4ade80'
-    if (mine) return '#818cf8'
-    if (count > 0) return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.3})`
+    if (mine) return '#fb923c'
+    if (count > 0) return `rgba(249,115,22,${0.15 + (count / maxCount) * 0.3})`
     return isDark ? '#1e293b' : '#f1f5f9'
   }
 
   const groupCellColor = (key: string) => {
     const count = slotCount[key] ?? 0
     if (count === 0) return isDark ? '#1e293b' : '#f1f5f9'
-    return `rgba(99,102,241,${0.15 + (count / maxCount) * 0.85})`
+    return `rgba(249,115,22,${0.15 + (count / maxCount) * 0.85})`
   }
 
   const whoIsAvailable = (key: string) =>
@@ -386,7 +386,7 @@ export default function EventPage() {
                       borderRadius: 0.5,
                       bgcolor: bgColor,
                       border: inPreview
-                        ? '2px solid #6366f1'
+                        ? '2px solid #f97316'
                         : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       boxSizing: 'border-box',
                       cursor:
@@ -521,7 +521,7 @@ export default function EventPage() {
           <Box flex={1} minWidth={0}>
             {/* Event info */}
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3, mb: 3 }}>
-              <Typography variant="h4" fontWeight={700} color="primary" mb={1}>
+              <Typography variant="h4" fontWeight={700} sx={{ color: '#9333ea' }} mb={1}>
                 {event.title}
               </Typography>
               {event.description && (
@@ -585,7 +585,7 @@ export default function EventPage() {
                             width: 14,
                             height: 14,
                             borderRadius: 0.5,
-                            bgcolor: '#818cf8',
+                            bgcolor: '#fb923c',
                           }}
                         />
                         <Typography variant="caption" color="text.secondary">
@@ -620,7 +620,7 @@ export default function EventPage() {
                   >
                     <Avatar
                       sx={{
-                        bgcolor: '#6366f1',
+                        bgcolor: '#f97316',
                         width: 36,
                         height: 36,
                         fontSize: 16,
@@ -680,7 +680,7 @@ export default function EventPage() {
 
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={4}>
-                <GroupIcon color="primary" />
+                <GroupIcon sx={{ color: '#f97316' }} />
                 <Typography fontWeight={700}>
                   Participants ({participants.length})
                 </Typography>
@@ -709,14 +709,14 @@ export default function EventPage() {
                         bgcolor:
                           p.id === currentParticipant?.id
                             ? isDark
-                              ? 'rgba(99, 102, 241, 0.15)'
-                              : '#eef2ff'
+                              ? 'rgba(249, 115, 22, 0.15)'
+                              : '#fff7ed'
                             : 'transparent',
                       }}
                     >
                       <Avatar
                         sx={{
-                          bgcolor: '#6366f1',
+                          bgcolor: '#f97316',
                           width: 30,
                           height: 30,
                           fontSize: 13,
@@ -734,7 +734,7 @@ export default function EventPage() {
                             {p.username}
                           </Typography>
                           {p.id === currentParticipant?.id && (
-                            <Typography variant="caption" color="primary">
+                            <Typography variant="caption" sx={{ color: '#f97316' }}>
                               (You)
                             </Typography>
                           )}
@@ -777,10 +777,10 @@ export default function EventPage() {
                         p: 1.5,
                         borderRadius: 2,
                         bgcolor:
-                          i === 0 ? 'rgba(99,102,241,0.08)' : 'transparent',
+                          i === 0 ? 'rgba(249,115,22,0.08)' : 'transparent',
                         border:
                           i === 0
-                            ? '1px solid #c7d2fe'
+                            ? '1px solid #fed7aa'
                             : '1px solid transparent',
                       }}
                     >
@@ -792,7 +792,7 @@ export default function EventPage() {
                       >
                         <Typography
                           fontWeight={700}
-                          color="primary"
+                          sx={{ color: '#f97316' }}
                           variant="caption"
                         >
                           #{i + 1}
