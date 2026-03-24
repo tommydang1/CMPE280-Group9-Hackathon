@@ -162,6 +162,18 @@ export default function EventPage() {
 
   const handleJoin = async () => {
     if (!tempName.trim() || !event) return
+    // Check existing participant in current event by username
+    const existing = participants.find(
+      (p) =>
+        p.username.toLowerCase() === tempName.trim().toLowerCase() &&
+        p.event_id === event.id,
+    )
+    if (existing) {
+      setCurrentParticipant(existing)
+      setJoined(true)
+      return
+    }
+
     const res = await fetch(`${API}/participants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
