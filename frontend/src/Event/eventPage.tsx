@@ -1,3 +1,4 @@
+// src/pages/EventPage.tsx
 import { useEffect, useState, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import {
@@ -18,7 +19,9 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
-import { useTheme } from '@mui/material/styles'
+import { useTheme, alpha } from '@mui/material/styles'
+import { useColorMode } from '../ThemeContext'
+import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
 
 const API = 'http://localhost:5001/api'
 
@@ -43,6 +46,7 @@ interface Timeslot {
   username: string
 }
 
+// Format times
 const fmtSlot = (slot: string) => {
   const [h, m] = slot.split(':').map(Number)
   const period = h < 12 ? 'AM' : 'PM'
@@ -63,15 +67,15 @@ export default function EventPage() {
   const navigate = useNavigate()
   const { eventID } = useParams()
   const theme = useTheme()
-  const isDark = theme.palette.mode === 'dark'
+  const { mode } = theme.palette
+  const isDark = mode === 'dark'
+
+  const { colorBlind } = useColorMode() // optional if you need for custom logic
 
   const [event, setEvent] = useState<Event | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [timeslots, setTimeslots] = useState<Timeslot[]>([])
-  const [
-    currentParticipant,
-    setCurrentParticipant,
-  ] = useState<Participant | null>(null)
+  const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null)
   const [tempName, setTempName] = useState('')
   const [joined, setJoined] = useState(false)
   const [editingName, setEditingName] = useState(false)
@@ -81,7 +85,7 @@ export default function EventPage() {
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  // Derive dates and 15-min slots from event
+  // Derive dates and slots
   const dates: string[] = []
   const slots: string[] = []
 
@@ -103,7 +107,6 @@ export default function EventPage() {
     slots.push(`${String(endH).padStart(2, '0')}:00`)
   }
 
-  // Derive selected from timeslots
   const selected = new Set(
     timeslots
       .filter((t) => t.participant_id === currentParticipant?.id)
@@ -155,8 +158,7 @@ export default function EventPage() {
     return result
   }
 
-  const previewSlots =
-    dragging && dragStart && dragEnd ? getSlotsInRect(dragStart, dragEnd) : []
+  const previewSlots = dragging && dragStart && dragEnd ? getSlotsInRect(dragStart, dragEnd) : []
 
   const handleJoin = async () => {
     if (!tempName.trim() || !event) return
@@ -165,8 +167,8 @@ export default function EventPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: tempName.trim(), event_id: event.id }),
     })
-    const data = await res.json()
-    const participant = data.participant ?? data
+    const json = await res.json()
+    const participant = json.participant ?? json
     setCurrentParticipant(participant)
     setParticipants((prev) =>
       prev.find((p) => p.id === participant.id) ? prev : [...prev, participant],
@@ -181,8 +183,7 @@ export default function EventPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: tempName.trim() }),
     })
-    const data = await res.json()
-    console.log('update name response:', data)
+    await res.json()
     setCurrentParticipant((prev) =>
       prev ? { ...prev, username: tempName.trim() } : prev,
     )
@@ -222,14 +223,14 @@ export default function EventPage() {
               start_time: `${s}:00Z`,
             }),
           })
-          const data = await res.json()
-          const realSlot = data.slot ?? data.timeslot
+          const json = await res.json()
+          const realSlot = json.slot ?? json.timeslot
           if (realSlot) {
             setTimeslots((prev) =>
               prev.map((t) =>
                 t.start_time === `${s}:00Z` &&
-                t.participant_id === currentParticipant.id &&
-                t.id < 0
+                  t.participant_id === currentParticipant.id &&
+                  t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
                   : t,
               ),
@@ -267,20 +268,12 @@ export default function EventPage() {
     }
   }
 
-  const cellColor = (key: string) => {
-    const mine = selected.has(key)
-    const count = slotCount[key] ?? 0
-    if (mine && count > 1) return '#4ade80'
-    if (mine) return '#fb923c'
-    if (count > 0) return `rgba(249,115,22,${0.15 + (count / maxCount) * 0.3})`
-    return isDark ? '#1e293b' : '#f1f5f9'
-  }
+  // ====== THEME-BASED COLORS ======
+  const cellColor = (key: string) =>
+    getCellColor(key, selected, slotCount, maxCount, colorBlind, isDark)
 
-  const groupCellColor = (key: string) => {
-    const count = slotCount[key] ?? 0
-    if (count === 0) return isDark ? '#1e293b' : '#f1f5f9'
-    return `rgba(249,115,22,${0.15 + (count / maxCount) * 0.85})`
-  }
+  const groupCellColor = (key: string) =>
+    getGroupCellColor(key, slotCount, maxCount, colorBlind, isDark)
 
   const whoIsAvailable = (key: string) =>
     timeslots
@@ -367,18 +360,18 @@ export default function EventPage() {
                     onMouseDown={
                       interactive
                         ? () => {
-                            if (!currentParticipant) return
-                            setDragAdding(!selected.has(key))
-                            setDragStart(key)
-                            setDragging(true)
-                          }
+                          if (!currentParticipant) return
+                          setDragAdding(!selected.has(key))
+                          setDragStart(key)
+                          setDragging(true)
+                        }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                            if (dragging) setDragEnd(key)
-                          }
+                          if (dragging) setDragEnd(key)
+                        }
                         : undefined
                     }
                     sx={{
@@ -386,7 +379,7 @@ export default function EventPage() {
                       borderRadius: 0.5,
                       bgcolor: bgColor,
                       border: inPreview
-                        ? '2px solid #f97316'
+                        ? '2px solid #14B8A6'
                         : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       boxSizing: 'border-box',
                       cursor:
@@ -521,7 +514,7 @@ export default function EventPage() {
           <Box flex={1} minWidth={0}>
             {/* Event info */}
             <Paper elevation={1} sx={{ p: 3, borderRadius: 3, mb: 3 }}>
-              <Typography variant="h4" fontWeight={700} sx={{ color: '#9333ea' }} mb={1}>
+              <Typography variant="h4" fontWeight={700} sx={{ color: theme.palette.primary.main }} mb={1}>
                 {event.title}
               </Typography>
               {event.description && (
@@ -585,11 +578,22 @@ export default function EventPage() {
                             width: 14,
                             height: 14,
                             borderRadius: 0.5,
-                            bgcolor: '#fb923c',
+                            bgcolor: theme.palette.primary.main,
                           }}
                         />
                         <Typography variant="caption" color="text.secondary">
                           Your availability
+                        </Typography>
+                        <Box
+                          sx={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 0.5,
+                            bgcolor: theme.palette.secondary.main,
+                          }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          Your Overlap
                         </Typography>
                       </Stack>
                     </Stack>
@@ -620,7 +624,7 @@ export default function EventPage() {
                   >
                     <Avatar
                       sx={{
-                        bgcolor: '#f97316',
+                        bgcolor: theme.palette.secondary.main,
                         width: 36,
                         height: 36,
                         fontSize: 16,
@@ -680,7 +684,7 @@ export default function EventPage() {
 
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={4}>
-                <GroupIcon sx={{ color: '#f97316' }} />
+                <GroupIcon sx={{ color: theme.palette.secondary.main }} />
                 <Typography fontWeight={700}>
                   Participants ({participants.length})
                 </Typography>
@@ -708,15 +712,16 @@ export default function EventPage() {
                         borderRadius: 2,
                         bgcolor:
                           p.id === currentParticipant?.id
-                            ? isDark
-                              ? 'rgba(249, 115, 22, 0.15)'
-                              : '#fff7ed'
+                            ? alpha(theme.palette.secondary.main, 0.15)
                             : 'transparent',
                       }}
                     >
                       <Avatar
                         sx={{
-                          bgcolor: '#f97316',
+                          bgcolor:
+                            p.id === currentParticipant?.id
+                              ? theme.palette.secondary.main
+                              : theme.palette.primary.main,
                           width: 30,
                           height: 30,
                           fontSize: 13,
@@ -734,7 +739,7 @@ export default function EventPage() {
                             {p.username}
                           </Typography>
                           {p.id === currentParticipant?.id && (
-                            <Typography variant="caption" sx={{ color: '#f97316' }}>
+                            <Typography variant="caption" sx={{ color: theme.palette.secondary.main }}>
                               (You)
                             </Typography>
                           )}
@@ -777,10 +782,12 @@ export default function EventPage() {
                         p: 1.5,
                         borderRadius: 2,
                         bgcolor:
-                          i === 0 ? 'rgba(249,115,22,0.08)' : 'transparent',
+                          i === 0
+                            ? `${alpha(theme.palette.secondary.main, 0.14)}`
+                            : 'transparent',
                         border:
                           i === 0
-                            ? '1px solid #fed7aa'
+                            ? `1px solid ${alpha(theme.palette.secondary.main, 0.5)}`
                             : '1px solid transparent',
                       }}
                     >
@@ -792,7 +799,7 @@ export default function EventPage() {
                       >
                         <Typography
                           fontWeight={700}
-                          sx={{ color: '#f97316' }}
+                          sx={{ color: theme.palette.secondary.main }}
                           variant="caption"
                         >
                           #{i + 1}
@@ -807,7 +814,7 @@ export default function EventPage() {
                             flex: 1,
                             height: 5,
                             borderRadius: 3,
-                            bgcolor: '#e2e8f0',
+                            bgcolor: alpha(theme.palette.divider, 0.2),
                             overflow: 'hidden',
                           }}
                         >
@@ -815,7 +822,7 @@ export default function EventPage() {
                             sx={{
                               height: '100%',
                               width: `${slot.percentage}%`,
-                              bgcolor: '#6366f1',
+                              bgcolor: theme.palette.primary.main,
                               borderRadius: 3,
                             }}
                           />
