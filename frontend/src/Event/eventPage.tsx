@@ -424,11 +424,18 @@ export default function EventPage() {
     <Box
       sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: 6 }}
       onMouseUp={() => {
-        if (dragging && dragStart && dragEnd)
-          applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
-        setDragging(false)
-        setDragStart(null)
-        setDragEnd(null)
+        if (dragging) {
+          if (dragStart && dragEnd) {
+            // Drag: apply rectangle
+            applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
+          } else if (dragStart) {
+            // Click: toggle single slot
+            applySlots([dragStart], dragAdding)
+          }
+          setDragging(false)
+          setDragStart(null)
+          setDragEnd(null)
+        }
       }}
     >
       {/* Top bar */}

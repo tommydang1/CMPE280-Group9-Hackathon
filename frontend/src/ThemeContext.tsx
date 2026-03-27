@@ -74,16 +74,16 @@ export const CustomThemeProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Color-blind overrides
     switch (colorBlind) {
       case 'protanopia':
-        primary = { main: '#009E73' };
-        secondary = { main: '#F0E442' };
+        primary = { main: '#1976D2' };
+        secondary = { main: '#c7bc24' };
         break;
       case 'deuteranopia':
         primary = { main: '#0072B2' };
         secondary = { main: '#D55E00' };
         break;
       case 'tritanopia':
-        primary = { main: '#56B4E9' };
-        secondary = { main: '#E69F00' };
+        primary = { main: '#8E24AA' };
+        secondary = { main: '#E91E63' };
         break;
       default:
         break;

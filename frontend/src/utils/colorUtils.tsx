@@ -16,28 +16,33 @@ export const getCellColor = (
 
     switch (colorBlind) {
         case 'protanopia':
-            if (overlap) return '#F0E442'
-            if (mine) return '#009E73'
-            if (count > 0) return `rgba(0,158,115,${0.15 + (count / maxCount) * 0.3})`
-            return isDark ? '#1c1c1e' : '#f1f5f9'
+            if (overlap) return '#c7bc24'
+            if (mine) return '#1976D2'
+            // darker pink for better visibility
+            if (count > 0) return `rgba(49,130,206,${0.18 + (count / maxCount) * 0.4})`
+            // use default dark background color to stay consistent with default mode
+            return isDark ? '#26272d' : '#f1f5f9'
 
         case 'deuteranopia':
             if (overlap) return '#D55E00'
             if (mine) return '#0072B2'
-            if (count > 0) return `rgba(0,114,178,${0.15 + (count / maxCount) * 0.3})`
-            return isDark ? '#1c1c1e' : '#f1f5f9'
+            // blue-based for intensity, avoids red-green contrast issues
+            if (count > 0) return `rgba(0,120,200,${0.18 + (count / maxCount) * 0.4})`
+            return isDark ? '#26272d' : '#f1f5f9'
 
         case 'tritanopia':
-            if (overlap) return '#FFB000'
-            if (mine) return '#56B4E9'
-            if (count > 0) return `rgba(86,180,233,${0.15 + (count / maxCount) * 0.3})`
-            return isDark ? '#1c1c1e' : '#f1f5f9'
+            if (overlap) return '#E91E63'
+            if (mine) return '#8E24AA'
+            // darker orange for better visibility
+            if (count > 0) return `rgba(200,110,0,${0.18 + (count / maxCount) * 0.4})`
+            return isDark ? '#26272d' : '#f1f5f9'
 
         default:
             if (overlap) return '#6366f1'
             if (mine) return '#fb923c'
-            if (count > 0) return `rgba(249,115,22,${0.15 + (count / maxCount) * 0.3})`
-            return isDark ? '#1c1c1e' : '#f1f5f9'
+            if (count > 0) return `rgba(49,130,206,${0.18 + (count / maxCount) * 0.4})`
+            // slightly lighter dark background for improved visibility in dark mode
+            return isDark ? '#26272d' : '#f1f5f9'
     }
 }
 
@@ -52,18 +57,19 @@ export const getGroupCellColor = (
     switch (colorBlind) {
         case 'protanopia':
             if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            return `rgba(0, 170, 120, ${0.15 + (count / maxCount) * 0.85})`; // green-teal gradient
+            // darker pink gradient
+            return `rgba(49,130,206, ${0.15 + (count / maxCount) * 0.85})`; // darker pink gradient
 
         case 'deuteranopia':
             if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            return `rgba(0, 120, 200, ${0.15 + (count / maxCount) * 0.85})`; // blue gradient
+            return `rgba(0, 120, 200, ${0.18 + (count / maxCount) * 0.5})`; // stronger blue gradient
 
         case 'tritanopia':
-            if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            return `rgba(90, 170, 230, ${0.15 + (count / maxCount) * 0.85})`; // cyan-blue gradient
+            if (count === 0) return isDark ? '#26272d' : '#f0f2f5';
+            return `rgba(200, 110, 0, ${0.18 + (count / maxCount) * 0.5})`; // stronger darker orange gradient
 
         default:
-            if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            return `rgba(249, 115, 22, ${0.15 + (count / maxCount) * 0.85})`; // bright orange gradient
+            if (count === 0) return isDark ? '#26272d' : '#f0f2f5';
+            return `rgba(49, 130, 206, ${0.18 + (count / maxCount) * 0.5})`; // stronger default blue gradient
     }
 }
