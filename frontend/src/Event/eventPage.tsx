@@ -1,6 +1,8 @@
 // src/pages/EventPage.tsx
 import { useEffect, useState, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router'
+import EditIcon from '@mui/icons-material/Edit'
+import IconButton from '@mui/material/IconButton'
 import {
   Avatar,
   Box,
@@ -22,7 +24,6 @@ import GroupIcon from '@mui/icons-material/Group'
 import { useTheme, alpha } from '@mui/material/styles'
 import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
-
 const API = 'http://localhost:5001/api'
 
 interface Event {
@@ -66,25 +67,95 @@ const fmtDate = (d: string) =>
 export default function EventPage() {
   const navigate = useNavigate()
   const { eventID } = useParams()
+  // add with your other useState declarations
+  const adminToken = localStorage.getItem(`adminToken-${eventID}`) || ''
+  const isAdmin = Boolean(adminToken)
   const theme = useTheme()
   const { mode } = theme.palette
   const isDark = mode === 'dark'
 
-  const { colorBlind } = useColorMode() // optional if you need for custom logic
+  const { colorBlind } = useColorMode()
 
   const [event, setEvent] = useState<Event | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [timeslots, setTimeslots] = useState<Timeslot[]>([])
-  const [currentParticipant, setCurrentParticipant] = useState<Participant | null>(null)
+  const [
+    currentParticipant,
+    setCurrentParticipant,
+  ] = useState<Participant | null>(() => {
+    const saved = localStorage.getItem(`participant-${eventID}`)
+    return saved ? JSON.parse(saved) : null
+  })
+  const [joined, setJoined] = useState(() => {
+    return Boolean(localStorage.getItem(`participant-${eventID}`))
+  })
+
   const [tempName, setTempName] = useState('')
-  const [joined, setJoined] = useState(false)
+  // const [joined, setJoined] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [dragAdding, setDragAdding] = useState(true)
   const [dragStart, setDragStart] = useState<string | null>(null)
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  // ── add these new state variables near your other useState declarations ──
+  const [editMode, setEditMode] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editStart, setEditStart] = useState('')
+  const [editEnd, setEditEnd] = useState('')
+  const [editMsg, setEditMsg] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
 
+  const toLocalFormat = (isoString: string) => {
+    if (!isoString) return ''
+    const d = new Date(isoString)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+      d.getDate(),
+    )}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  }
+
+  const handleEditOpen = () => {
+    setEditTitle(event!.title)
+    setEditStart(toLocalFormat(event!.start_time))
+    setEditEnd(toLocalFormat(event!.end_time))
+    setEditMode(true)
+  }
+
+  const handleEditSave = async () => {
+    if (new Date(editStart) > new Date(editEnd)) {
+      setEditMsg('Start time cannot be after end time')
+      return
+    }
+    setEditLoading(true)
+    try {
+      const res = await fetch(`${API}/events/${eventID}/edit`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-token': adminToken,
+        },
+        body: JSON.stringify({
+          title: editTitle,
+          start_time: new Date(editStart).toISOString(),
+          end_time: new Date(editEnd).toISOString(),
+        }),
+      })
+      if (!res.ok) {
+        setEditMsg('Failed to save.')
+        return
+      }
+      // re-fetch event to update info card and grid
+      const data = await fetch(`${API}/events/${eventID}`).then((r) => r.json())
+      setEvent(data.event ?? data)
+      setEditMode(false)
+      setEditMsg('')
+    } catch {
+      setEditMsg('Failed to save.')
+    } finally {
+      setEditLoading(false)
+    }
+  }
   // Derive dates and slots
   const dates: string[] = []
   const slots: string[] = []
@@ -92,19 +163,28 @@ export default function EventPage() {
   if (event) {
     const cur = new Date(event.start_time)
     const last = new Date(event.end_time)
+
     while (cur <= last) {
-      dates.push(cur.toISOString().slice(0, 10))
+      const pad = (n: number) => String(n).padStart(2, '0')
+      dates.push(
+        `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`,
+      )
       cur.setDate(cur.getDate() + 1)
     }
+
     const startH = new Date(event.start_time).getHours()
     const endH = new Date(event.end_time).getHours()
-    for (let h = startH; h < endH; h++) {
-      slots.push(`${String(h).padStart(2, '0')}:00`)
-      slots.push(`${String(h).padStart(2, '0')}:15`)
-      slots.push(`${String(h).padStart(2, '0')}:30`)
-      slots.push(`${String(h).padStart(2, '0')}:45`)
+
+    // ← guard: if startH >= endH, times are bad or cross midnight
+    if (startH < endH) {
+      for (let h = startH; h < endH; h++) {
+        slots.push(`${String(h).padStart(2, '0')}:00`)
+        slots.push(`${String(h).padStart(2, '0')}:15`)
+        slots.push(`${String(h).padStart(2, '0')}:30`)
+        slots.push(`${String(h).padStart(2, '0')}:45`)
+      }
+      slots.push(`${String(endH).padStart(2, '0')}:00`)
     }
-    slots.push(`${String(endH).padStart(2, '0')}:00`)
   }
 
   const selected = new Set(
@@ -115,15 +195,24 @@ export default function EventPage() {
 
   useEffect(() => {
     if (!eventID) return
-    fetch(`${API}/events/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setEvent(data.event ?? data))
-    fetch(`${API}/participants/event/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setParticipants(data.participants ?? data))
-    fetch(`${API}/timeslots/event/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
+
+    const fetchAll = () => {
+      fetch(`${API}/events/${eventID}`, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => setEvent(data.event ?? data))
+
+      fetch(`${API}/participants/event/${eventID}`, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => setParticipants(data.participants ?? data))
+
+      fetch(`${API}/timeslots/event/${eventID}`, { cache: 'no-store' })
+        .then((r) => r.json())
+        .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
+    }
+
+    fetchAll()
+    const interval = setInterval(fetchAll, 10000)
+    return () => clearInterval(interval)
   }, [eventID])
 
   const slotKey = (date: string, slot: string) => `${date}T${slot}`
@@ -158,11 +247,11 @@ export default function EventPage() {
     return result
   }
 
-  const previewSlots = dragging && dragStart && dragEnd ? getSlotsInRect(dragStart, dragEnd) : []
+  const previewSlots =
+    dragging && dragStart && dragEnd ? getSlotsInRect(dragStart, dragEnd) : []
 
   const handleJoin = async () => {
     if (!tempName.trim() || !event) return
-    // Check existing participant in current event by username
     const existing = participants.find(
       (p) =>
         p.username.toLowerCase() === tempName.trim().toLowerCase() &&
@@ -170,10 +259,10 @@ export default function EventPage() {
     )
     if (existing) {
       setCurrentParticipant(existing)
+      localStorage.setItem(`participant-${eventID}`, JSON.stringify(existing)) // ← add
       setJoined(true)
       return
     }
-
     const res = await fetch(`${API}/participants`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -182,6 +271,7 @@ export default function EventPage() {
     const json = await res.json()
     const participant = json.participant ?? json
     setCurrentParticipant(participant)
+    localStorage.setItem(`participant-${eventID}`, JSON.stringify(participant)) // ← add
     setParticipants((prev) =>
       prev.find((p) => p.id === participant.id) ? prev : [...prev, participant],
     )
@@ -190,15 +280,14 @@ export default function EventPage() {
 
   const handleSaveName = async () => {
     if (!tempName.trim() || !currentParticipant) return
-    const res = await fetch(`${API}/participants/${currentParticipant.id}`, {
+    await fetch(`${API}/participants/${currentParticipant.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: tempName.trim() }),
     })
-    await res.json()
-    setCurrentParticipant((prev) =>
-      prev ? { ...prev, username: tempName.trim() } : prev,
-    )
+    const updated = { ...currentParticipant, username: tempName.trim() }
+    setCurrentParticipant(updated)
+    localStorage.setItem(`participant-${eventID}`, JSON.stringify(updated)) // ← add
     setParticipants((prev) =>
       prev.map((p) =>
         p.id === currentParticipant.id
@@ -241,8 +330,8 @@ export default function EventPage() {
             setTimeslots((prev) =>
               prev.map((t) =>
                 t.start_time === `${s}:00Z` &&
-                  t.participant_id === currentParticipant.id &&
-                  t.id < 0
+                t.participant_id === currentParticipant.id &&
+                t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
                   : t,
               ),
@@ -372,18 +461,18 @@ export default function EventPage() {
                     onMouseDown={
                       interactive
                         ? () => {
-                          if (!currentParticipant) return
-                          setDragAdding(!selected.has(key))
-                          setDragStart(key)
-                          setDragging(true)
-                        }
+                            if (!currentParticipant) return
+                            setDragAdding(!selected.has(key))
+                            setDragStart(key)
+                            setDragging(true)
+                          }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                          if (dragging) setDragEnd(key)
-                        }
+                            if (dragging) setDragEnd(key)
+                          }
                         : undefined
                     }
                     sx={{
@@ -532,45 +621,155 @@ export default function EventPage() {
           {/* Left */}
           <Box flex={1} minWidth={0}>
             {/* Event info */}
-            <Paper elevation={1} sx={{ p: 3, borderRadius: 3, mb: 3 }}>
-              <Typography variant="h4" fontWeight={700} sx={{ color: theme.palette.primary.main }} mb={1}>
-                {event.title}
-              </Typography>
-              {event.description && (
-                <Typography color="text.secondary" mb={1}>
-                  {event.description}
-                </Typography>
+            {/* Event info card */}
+            <Paper
+              elevation={1}
+              sx={{ p: 3, borderRadius: 3, mb: 3, position: 'relative' }}
+            >
+              {/* pencil icon — only for admin, only when not editing */}
+              {isAdmin && !editMode && (
+                <Tooltip title="Edit event">
+                  <IconButton
+                    onClick={handleEditOpen}
+                    size="small"
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      color: 'text.secondary',
+                      '&:hover': { color: theme.palette.primary.main },
+                    }}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
               )}
-              <Stack direction="row" spacing={2}>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <CalendarTodayIcon
-                    sx={{ fontSize: 16, color: 'text.secondary' }}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    {fmtDate(event.start_time)} – {fmtDate(event.end_time)}
+
+              {!editMode ? (
+                // ----- view mode -----
+                <>
+                  <Typography
+                    variant="h4"
+                    fontWeight={700}
+                    sx={{ color: theme.palette.primary.main }}
+                    mb={1}
+                  >
+                    {event.title}
                   </Typography>
-                </Stack>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <AccessTimeIcon
-                    sx={{ fontSize: 16, color: 'text.secondary' }}
-                  />
-                  <Typography variant="body2" color="text.secondary">
-                    {fmtSlot(
-                      `${String(new Date(event.start_time).getHours()).padStart(
-                        2,
-                        '0',
-                      )}:00`,
-                    )}{' '}
-                    –{' '}
-                    {fmtSlot(
-                      `${String(new Date(event.end_time).getHours()).padStart(
-                        2,
-                        '0',
-                      )}:00`,
-                    )}
+                  {event.description && (
+                    <Typography color="text.secondary" mb={1}>
+                      {event.description}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={2}>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <CalendarTodayIcon
+                        sx={{ fontSize: 16, color: 'text.secondary' }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        {fmtDate(event.start_time)} – {fmtDate(event.end_time)}
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <AccessTimeIcon
+                        sx={{ fontSize: 16, color: 'text.secondary' }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        {fmtSlot(
+                          `${String(
+                            new Date(event.start_time).getHours(),
+                          ).padStart(2, '0')}:00`,
+                        )}
+                        {' – '}
+                        {fmtSlot(
+                          `${String(
+                            new Date(event.end_time).getHours(),
+                          ).padStart(2, '0')}:00`,
+                        )}
+                      </Typography>
+                    </Stack>
+                  </Stack>
+                </>
+              ) : (
+                // ─ ─ edit mode - -
+                <Stack spacing={2}>
+                  <Typography fontWeight={700} fontSize={15} color="primary">
+                    Edit Event
                   </Typography>
+
+                  {editMsg && (
+                    <Typography variant="body2" color="error">
+                      {editMsg}
+                    </Typography>
+                  )}
+
+                  <TextField
+                    label="Event name"
+                    size="small"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    fullWidth
+                  />
+
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    spacing={2}
+                    alignItems="center"
+                  >
+                    <TextField
+                      label="Start time"
+                      type="datetime-local"
+                      size="small"
+                      value={editStart}
+                      onChange={(e) => setEditStart(e.target.value)}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    <Typography color="text.secondary" sx={{ flexShrink: 0 }}>
+                      to
+                    </Typography>
+                    <TextField
+                      label="End time"
+                      type="datetime-local"
+                      size="small"
+                      value={editEnd}
+                      onChange={(e) => setEditEnd(e.target.value)}
+                      fullWidth
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Stack>
+
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="contained"
+                      disableElevation
+                      onClick={handleEditSave}
+                      disabled={editLoading || !editTitle.trim()}
+                      sx={{
+                        textTransform: 'none',
+                        borderRadius: 2,
+                        background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                        '&:hover': {
+                          background:
+                            'linear-gradient(135deg, #4f46e5, #9333ea)',
+                        },
+                      }}
+                    >
+                      {editLoading ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setEditMode(false)
+                        setEditMsg('')
+                      }}
+                      sx={{ textTransform: 'none', borderRadius: 2 }}
+                    >
+                      Cancel
+                    </Button>
+                  </Stack>
                 </Stack>
-              </Stack>
+              )}
             </Paper>
 
             {/* Grid */}
@@ -758,7 +957,10 @@ export default function EventPage() {
                             {p.username}
                           </Typography>
                           {p.id === currentParticipant?.id && (
-                            <Typography variant="caption" sx={{ color: theme.palette.secondary.main }}>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: theme.palette.secondary.main }}
+                            >
                               (You)
                             </Typography>
                           )}
@@ -806,7 +1008,10 @@ export default function EventPage() {
                             : 'transparent',
                         border:
                           i === 0
-                            ? `1px solid ${alpha(theme.palette.secondary.main, 0.5)}`
+                            ? `1px solid ${alpha(
+                                theme.palette.secondary.main,
+                                0.5,
+                              )}`
                             : '1px solid transparent',
                       }}
                     >

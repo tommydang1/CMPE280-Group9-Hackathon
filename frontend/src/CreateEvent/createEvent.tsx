@@ -14,7 +14,7 @@ import {
 import { useTheme } from '@mui/material/styles'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
-const API = 'https://cmpe-280-group9-hackathon.vercel.app/api'
+const API = 'http://localhost:5001/api'
 // const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 export default function CreateEventPage() {
@@ -50,7 +50,11 @@ export default function CreateEventPage() {
         }),
       })
       const { event } = await res.json()
+
       console.log('event response:', event) //
+      // save admin token — only the creator's browser will have this
+
+      localStorage.setItem(`adminToken-${event.id}`, event.admin_token)
       navigate(`/event/${event.id}`)
     } catch (err) {
       console.error(err)
@@ -63,7 +67,7 @@ export default function CreateEventPage() {
     <Box
       sx={{
         minHeight: '100vh',
-        background: isDark 
+        background: isDark
           ? 'linear-gradient(135deg, #121212 0%, #1e1e1e 50%, #121212 100%)'
           : 'linear-gradient(135deg, #eff6ff 0%, #fff 50%, #faf5ff 100%)',
       }}

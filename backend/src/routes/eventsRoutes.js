@@ -31,4 +31,29 @@ router.get("/", eventsController.getAllEvents);
  */
 router.get("/:id", eventsController.getEventById);
 
+// Edit event (admin only)
+/**
+ * @api {patch} /api/events/:id/edit Edit event name and time range
+ * @apiHeader {String} x-admin-token Admin token
+ * @apiParam {Number} id Event ID
+ * @apiBody {String} [title] New event title
+ * @apiBody {String} [start_time] New start time
+ * @apiBody {String} [end_time] New end time
+ * @apiSuccess {Object} event Updated event object
+ */
+router.patch(
+  "/:id/edit",
+  eventsController.verifyAdmin,
+  eventsController.editEvent,
+);
+
+router.post(
+  "/",
+  (req, res, next) => {
+    console.log("POST /api/events hit"); // ← add this
+    next();
+  },
+  eventsController.createEvent,
+);
+
 module.exports = router;
