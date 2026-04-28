@@ -24,3 +24,11 @@ npm run dev
 ```
 npm start
 ```
+
+## Keyboard Controls
+LinkUp is built with full keyboard accessibility in mind.
+- **Navigation:** Press `Tab` and `Shift + Tab` to move through fields, buttons, and the availability grid.
+- **Action/Click:** Press `Enter` or `Space` to activate buttons, open menus, and submit forms.
+- **Availability Grid:** Use the `Arrow Keys` (Up/Down/Left/Right) to navigate across time slots. Press `Space` or `Enter` to toggle a single slot. 
+- **Multi-select:** Hold `Shift` + `Arrow Keys` to start a block selection in the grid for quickly marking a wide range of availability.
+- **Accessibility Menu:** Press `Arrow Up/Down` to switch between Dark Mode and Color Blind filters from the accessibility menu.

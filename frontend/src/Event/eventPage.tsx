@@ -98,6 +98,7 @@ export default function EventPage() {
   const [dragStart, setDragStart] = useState<string | null>(null)
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [focusedCell, setFocusedCell] = useState<{ dateIdx: number, slotIdx: number } | null>(null)
   // ── add these new state variables near your other useState declarations ──
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -403,11 +404,97 @@ export default function EventPage() {
   const renderGrid = (interactive: boolean) => (
     <Box sx={{ overflowX: 'auto' }}>
       <Box
+        onKeyDown={interactive && currentParticipant ? (e) => {
+          if (!focusedCell) {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+              setFocusedCell({ dateIdx: 0, slotIdx: 0 });
+              e.preventDefault();
+            }
+            return;
+          }
+          let { dateIdx, slotIdx } = focusedCell;
+          let changed = false;
+
+          if (e.shiftKey && !dragging && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            const currentSlotKey = slotKey(dates[dateIdx], slots[slotIdx]);
+            setDragStart(currentSlotKey);
+            setDragAdding(!selected.has(currentSlotKey));
+            setDragging(true);
+          }
+
+          switch (e.key) {
+            case 'ArrowUp':
+              slotIdx = Math.max(0, slotIdx - 1);
+              changed = true;
+              break;
+            case 'ArrowDown':
+              slotIdx = Math.min(slots.length - 1, slotIdx + 1);
+              changed = true;
+              break;
+            case 'ArrowLeft':
+              dateIdx = Math.max(0, dateIdx - 1);
+              changed = true;
+              break;
+            case 'ArrowRight':
+              dateIdx = Math.min(dates.length - 1, dateIdx + 1);
+              changed = true;
+              break;
+            case ' ':
+            case 'Enter':
+              e.preventDefault();
+              if (dragging && dragStart && dragEnd) {
+                 applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
+                 setDragging(false);
+                 setDragStart(null);
+                 setDragEnd(null);
+              } else {
+                 const key = slotKey(dates[dateIdx], slots[slotIdx]);
+                 applySlots([key], !selected.has(key));
+              }
+              return;
+            default:
+              return;
+          }
+          if (changed) {
+            e.preventDefault();
+            setFocusedCell({ dateIdx, slotIdx });
+            if (e.shiftKey) {
+              setDragEnd(slotKey(dates[dateIdx], slots[slotIdx]));
+            } else if (dragging) {
+              setDragging(false);
+              setDragStart(null);
+              setDragEnd(null);
+            }
+          }
+        } : undefined}
+        onKeyUp={interactive && currentParticipant ? (e) => {
+          if (e.key === 'Shift' && dragging) {
+            if (dragStart && dragEnd) {
+              applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
+            }
+            setDragging(false);
+            setDragStart(null);
+            setDragEnd(null);
+          }
+        } : undefined}
+        tabIndex={interactive && currentParticipant ? 0 : undefined}
+        onFocus={interactive && currentParticipant ? () => {
+          if (!focusedCell) setFocusedCell({ dateIdx: 0, slotIdx: 0 });
+        } : undefined}
+        onBlur={interactive ? () => {
+          setFocusedCell(null);
+          if (dragging) {
+            setDragging(false);
+            setDragStart(null);
+            setDragEnd(null);
+          }
+        } : undefined}
         sx={{
           display: 'grid',
           gridTemplateColumns: `64px repeat(${dates.length}, minmax(80px, 1fr))`,
           gap: '1px',
           userSelect: 'none',
+          outline: interactive && currentParticipant ? 'none' : undefined,
         }}
       >
         <Box />
@@ -424,7 +511,7 @@ export default function EventPage() {
             </Typography>
           </Box>
         ))}
-        {slots.map((s) => (
+        {slots.map((s, sIdx) => (
           <Fragment key={s}>
             <Typography
               variant="caption"
@@ -439,7 +526,7 @@ export default function EventPage() {
             >
               {s.endsWith(':00') || s.endsWith(':30') ? fmtSlot(s) : ''}
             </Typography>
-            {dates.map((d) => {
+            {dates.map((d, dIdx) => {
               const key = slotKey(d, s)
               const who = whoIsAvailable(key)
               const count = slotCount[key] ?? 0
@@ -458,6 +545,9 @@ export default function EventPage() {
                   disableHoverListener={!who && !count}
                 >
                   <Box
+                    role="gridcell"
+                    aria-label={`Time slot: ${new Date(d + 'T00:00:00').toLocaleDateString()}, ${s}. ${label}`}
+                    aria-selected={selected.has(key)}
                     onMouseDown={
                       interactive
                         ? () => {
@@ -481,7 +571,11 @@ export default function EventPage() {
                       bgcolor: bgColor,
                       border: inPreview
                         ? '2px solid #14B8A6'
+                        : interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx
+                        ? `2px solid ${theme.palette.primary.main}`
                         : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                      zIndex: interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx ? 1 : 0,
+                      position: 'relative',
                       boxSizing: 'border-box',
                       cursor:
                         interactive && currentParticipant
