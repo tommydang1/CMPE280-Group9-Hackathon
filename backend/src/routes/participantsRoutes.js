@@ -13,6 +13,17 @@ const participantsController = require("../controllers/participantsController");
  */
 router.post("/", participantsController.createParticipant);
 
+// Verify participant login (check if password required)
+
+/**
+ * @api {post} /api/participants/verify Verify participant credentials
+ * @apiBody {string} username Participant username
+ * @apiBody {number} event_id Event ID
+ * @apiBody {string} [password] Optional password
+ * @apiSuccess {Object} participant Verified participant or password_required flag
+ */
+router.post("/verify", participantsController.verifyParticipant);
+
 // Get all participants for an event
 
 /**

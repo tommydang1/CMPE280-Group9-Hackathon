@@ -92,6 +92,8 @@ export default function EventPage() {
   })
 
   const [tempName, setTempName] = useState('')
+  const [tempPassword, setTempPassword] = useState('')
+  const [passwordRequired, setPasswordRequired] = useState(false)
   // const [joined, setJoined] = useState(false)
   const [editingName, setEditingName] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -264,26 +266,32 @@ export default function EventPage() {
 
   const handleJoin = async () => {
     if (!tempName.trim() || !event) return
-    const existing = participants.find(
-      (p) =>
-        p.username.toLowerCase() === tempName.trim().toLowerCase() &&
-        p.event_id === event.id,
-    )
-    if (existing) {
-      setCurrentParticipant(existing)
-      localStorage.setItem(`participant-${eventID}`, JSON.stringify(existing)) // ← add
-      setJoined(true)
-      return
-    }
-    const res = await fetch(`${API}/participants`, {
+
+    // First, check if password is required for this participant
+    const verifyRes = await fetch(`${API}/participants/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: tempName.trim(), event_id: event.id }),
+      body: JSON.stringify({
+        username: tempName.trim(),
+        event_id: event.id,
+        password: tempPassword || null
+      }),
     })
-    const json = await res.json()
-    const participant = json.participant ?? json
+    const verifyJson = await verifyRes.json()
+
+    if (!verifyJson.success) {
+      alert('Wrong password.')
+      return
+    }
+
+    if (verifyJson.password_required) {
+      setPasswordRequired(true)
+      return
+    }
+
+    const participant = verifyJson.participant
     setCurrentParticipant(participant)
-    localStorage.setItem(`participant-${eventID}`, JSON.stringify(participant)) // ← add
+    localStorage.setItem(`participant-${eventID}`, JSON.stringify(participant))
     setParticipants((prev) =>
       prev.find((p) => p.id === participant.id) ? prev : [...prev, participant],
     )
@@ -308,6 +316,13 @@ export default function EventPage() {
       ),
     )
     setEditingName(false)
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem(`participant-${eventID}`)
+    localStorage.removeItem(`adminToken-${eventID}`)
+    setCurrentParticipant(null)
+    setJoined(false)
   }
 
   const applySlots = async (slotsToApply: string[], adding: boolean) => {
@@ -342,8 +357,8 @@ export default function EventPage() {
             setTimeslots((prev) =>
               prev.map((t) =>
                 t.start_time === `${s}:00Z` &&
-                t.participant_id === currentParticipant.id &&
-                t.id < 0
+                  t.participant_id === currentParticipant.id &&
+                  t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
                   : t,
               ),
@@ -454,13 +469,13 @@ export default function EventPage() {
             case 'Enter':
               e.preventDefault();
               if (dragging && dragStart && dragEnd) {
-                 applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
-                 setDragging(false);
-                 setDragStart(null);
-                 setDragEnd(null);
+                applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
+                setDragging(false);
+                setDragStart(null);
+                setDragEnd(null);
               } else {
-                 const key = slotKey(dates[dateIdx], slots[slotIdx]);
-                 applySlots([key], !selected.has(key));
+                const key = slotKey(dates[dateIdx], slots[slotIdx]);
+                applySlots([key], !selected.has(key));
               }
               return;
             default:
@@ -562,18 +577,18 @@ export default function EventPage() {
                     onMouseDown={
                       interactive
                         ? () => {
-                            if (!currentParticipant) return
-                            setDragAdding(!selected.has(key))
-                            setDragStart(key)
-                            setDragging(true)
-                          }
+                          if (!currentParticipant) return
+                          setDragAdding(!selected.has(key))
+                          setDragStart(key)
+                          setDragging(true)
+                        }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                            if (dragging) setDragEnd(key)
-                          }
+                          if (dragging) setDragEnd(key)
+                        }
                         : undefined
                     }
                     sx={{
@@ -583,8 +598,8 @@ export default function EventPage() {
                       border: inPreview
                         ? '2px solid #14B8A6'
                         : interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx
-                        ? `2px solid ${theme.palette.primary.main}`
-                        : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                          ? `2px solid ${theme.palette.primary.main}`
+                          : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       zIndex: interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx ? 1 : 0,
                       position: 'relative',
                       boxSizing: 'border-box',
@@ -690,20 +705,34 @@ export default function EventPage() {
             }}
           >
             <Typography variant="h6" fontWeight={600} mb={1}>
-              What's your name?
+              {passwordRequired ? "Password required" : "What's your name?"}
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
-              Enter your name to mark your availability
+              {passwordRequired
+                ? "This participant requires a password to join"
+                : "Enter your name to mark your availability"}
             </Typography>
             <Stack spacing={2}>
               <TextField
                 size="small"
                 label="Your name"
                 value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
+                onChange={(e) => {
+                  setTempName(e.target.value)
+                  setPasswordRequired(false)
+                }}
                 onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
                 fullWidth
                 autoFocus
+              />
+              <TextField
+                size="small"
+                label="Password (optional)"
+                type="password"
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                fullWidth
               />
               <Button
                 variant="contained"
@@ -714,6 +743,20 @@ export default function EventPage() {
               >
                 Continue
               </Button>
+              {passwordRequired && (
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() => {
+                    setTempName('')
+                    setTempPassword('')
+                    setPasswordRequired(false)
+                  }}
+                  sx={{ textTransform: 'none' }}
+                >
+                  Use different name
+                </Button>
+              )}
             </Stack>
           </Paper>
         )}
@@ -997,6 +1040,15 @@ export default function EventPage() {
                       Change Name
                     </Button>
                   )}
+                  <Button
+                    fullWidth
+                    variant="text"
+                    size="small"
+                    onClick={handleLogout}
+                    sx={{ textTransform: 'none', borderRadius: 2, mt: 1, color: 'error.main' }}
+                  >
+                    Log Out
+                  </Button>
                 </>
               ) : (
                 <Typography variant="body2" color="text.secondary">
@@ -1114,9 +1166,9 @@ export default function EventPage() {
                         border:
                           i === 0
                             ? `1px solid ${alpha(
-                                theme.palette.secondary.main,
-                                0.5,
-                              )}`
+                              theme.palette.secondary.main,
+                              0.5,
+                            )}`
                             : '1px solid transparent',
                       }}
                     >
