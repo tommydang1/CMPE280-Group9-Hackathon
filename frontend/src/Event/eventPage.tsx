@@ -23,7 +23,7 @@ import { useTheme, alpha } from '@mui/material/styles'
 import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
 
-const API = 'http://localhost:5001/api'
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 interface Event {
   id: number
@@ -113,17 +113,36 @@ export default function EventPage() {
       .map((t) => t.start_time.slice(0, 16)),
   )
 
+  const fetchEventData = async () => {
+    if (!eventID) return
+
+    try {
+      const [eventRes, participantsRes, timeslotsRes] = await Promise.all([
+        fetch(`${API}/events/${eventID}`),
+        fetch(`${API}/participants/event/${eventID}`),
+        fetch(`${API}/timeslots/event/${eventID}`),
+      ])
+
+      const [eventJson, participantsJson, timeslotsJson] = await Promise.all([
+        eventRes.json(),
+        participantsRes.json(),
+        timeslotsRes.json(),
+      ])
+
+      setEvent(eventJson.event ?? eventJson)
+      setParticipants(participantsJson.participants ?? participantsJson)
+      setTimeslots(timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson)
+    } catch (error) {
+      console.error('Failed to refresh event data:', error)
+    }
+  }
+
   useEffect(() => {
     if (!eventID) return
-    fetch(`${API}/events/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setEvent(data.event ?? data))
-    fetch(`${API}/participants/event/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setParticipants(data.participants ?? data))
-    fetch(`${API}/timeslots/event/${eventID}`)
-      .then((r) => r.json())
-      .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
+
+    fetchEventData()
+    const intervalId = window.setInterval(fetchEventData, 5000)
+    return () => window.clearInterval(intervalId)
   }, [eventID])
 
   const slotKey = (date: string, slot: string) => `${date}T${slot}`
