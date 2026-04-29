@@ -37,10 +37,12 @@ app.use(express.json());
 const participantsRoutes = require("./routes/participantsRoutes");
 const eventsRoutes = require("./routes/eventsRoutes");
 const timeslotRoutes = require("./routes/timeslotRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 app.use("/api/participants", participantsRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/timeslots", timeslotRoutes);
+app.use("/api/ai", aiRoutes);
 
 app.get("/", (req, res) => {
   res.send("API running");

@@ -21,6 +21,7 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
 import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { useTheme, alpha } from '@mui/material/styles'
 import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
@@ -105,6 +106,12 @@ export default function EventPage() {
     dateIdx: number
     slotIdx: number
   } | null>(null)
+
+  // ── AI Magic Select State ──
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiSuccess, setAiSuccess] = useState('')
   // ── add these new state variables near your other useState declarations ──
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -388,8 +395,8 @@ export default function EventPage() {
             setTimeslots((prev) =>
               prev.map((t) =>
                 t.start_time === `${s}:00Z` &&
-                t.participant_id === currentParticipant.id &&
-                t.id < 0
+                  t.participant_id === currentParticipant.id &&
+                  t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
                   : t,
               ),
@@ -424,6 +431,43 @@ export default function EventPage() {
           await fetch(`${API}/timeslots/${timeslot.id}`, { method: 'DELETE' })
         }
       }
+    }
+  }
+
+  const handleMagicSelect = async () => {
+    if (!aiPrompt.trim() || !event || !currentParticipant) return;
+    setAiLoading(true);
+    setAiError('');
+    setAiSuccess('');
+
+    try {
+      const res = await fetch(`${API}/ai/parse-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: aiPrompt,
+          dates: dates,
+          slots: slots
+        })
+      });
+
+      if (!res.ok) throw new Error("Failed to parse");
+
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      if (data.selectedSlots && data.selectedSlots.length > 0) {
+        await applySlots(data.selectedSlots, true);
+        setAiSuccess(`Selected ${data.selectedSlots.length} slots matching your request!`);
+        setAiPrompt('');
+      } else {
+        setAiError("Could not find matching time slots. Please adjust dates or times.");
+      }
+    } catch (err) {
+      console.error("AI UI Error:", err);
+      setAiError("Something went wrong processing your request.");
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -464,115 +508,115 @@ export default function EventPage() {
         onKeyDown={
           interactive && currentParticipant
             ? (e) => {
-                if (!focusedCell) {
-                  if (
-                    [
-                      'ArrowUp',
-                      'ArrowDown',
-                      'ArrowLeft',
-                      'ArrowRight',
-                    ].includes(e.key)
-                  ) {
-                    setFocusedCell({ dateIdx: 0, slotIdx: 0 })
-                    e.preventDefault()
-                  }
-                  return
-                }
-                let { dateIdx, slotIdx } = focusedCell
-                let changed = false
-
+              if (!focusedCell) {
                 if (
-                  e.shiftKey &&
-                  !dragging &&
-                  ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(
-                    e.key,
-                  )
+                  [
+                    'ArrowUp',
+                    'ArrowDown',
+                    'ArrowLeft',
+                    'ArrowRight',
+                  ].includes(e.key)
                 ) {
-                  const currentSlotKey = slotKey(dates[dateIdx], slots[slotIdx])
-                  setDragStart(currentSlotKey)
-                  setDragAdding(!selected.has(currentSlotKey))
-                  setDragging(true)
-                }
-
-                switch (e.key) {
-                  case 'ArrowUp':
-                    slotIdx = Math.max(0, slotIdx - 1)
-                    changed = true
-                    break
-                  case 'ArrowDown':
-                    slotIdx = Math.min(slots.length - 1, slotIdx + 1)
-                    changed = true
-                    break
-                  case 'ArrowLeft':
-                    dateIdx = Math.max(0, dateIdx - 1)
-                    changed = true
-                    break
-                  case 'ArrowRight':
-                    dateIdx = Math.min(dates.length - 1, dateIdx + 1)
-                    changed = true
-                    break
-                  case ' ':
-                  case 'Enter':
-                    e.preventDefault()
-                    if (dragging && dragStart && dragEnd) {
-                      applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
-                      setDragging(false)
-                      setDragStart(null)
-                      setDragEnd(null)
-                    } else {
-                      const key = slotKey(dates[dateIdx], slots[slotIdx])
-                      applySlots([key], !selected.has(key))
-                    }
-                    return
-                  default:
-                    return
-                }
-                if (changed) {
+                  setFocusedCell({ dateIdx: 0, slotIdx: 0 })
                   e.preventDefault()
-                  setFocusedCell({ dateIdx, slotIdx })
-                  if (e.shiftKey) {
-                    setDragEnd(slotKey(dates[dateIdx], slots[slotIdx]))
-                  } else if (dragging) {
+                }
+                return
+              }
+              let { dateIdx, slotIdx } = focusedCell
+              let changed = false
+
+              if (
+                e.shiftKey &&
+                !dragging &&
+                ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(
+                  e.key,
+                )
+              ) {
+                const currentSlotKey = slotKey(dates[dateIdx], slots[slotIdx])
+                setDragStart(currentSlotKey)
+                setDragAdding(!selected.has(currentSlotKey))
+                setDragging(true)
+              }
+
+              switch (e.key) {
+                case 'ArrowUp':
+                  slotIdx = Math.max(0, slotIdx - 1)
+                  changed = true
+                  break
+                case 'ArrowDown':
+                  slotIdx = Math.min(slots.length - 1, slotIdx + 1)
+                  changed = true
+                  break
+                case 'ArrowLeft':
+                  dateIdx = Math.max(0, dateIdx - 1)
+                  changed = true
+                  break
+                case 'ArrowRight':
+                  dateIdx = Math.min(dates.length - 1, dateIdx + 1)
+                  changed = true
+                  break
+                case ' ':
+                case 'Enter':
+                  e.preventDefault()
+                  if (dragging && dragStart && dragEnd) {
+                    applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
                     setDragging(false)
                     setDragStart(null)
                     setDragEnd(null)
+                  } else {
+                    const key = slotKey(dates[dateIdx], slots[slotIdx])
+                    applySlots([key], !selected.has(key))
                   }
-                }
+                  return
+                default:
+                  return
               }
-            : undefined
-        }
-        onKeyUp={
-          interactive && currentParticipant
-            ? (e) => {
-                if (e.key === 'Shift' && dragging) {
-                  if (dragStart && dragEnd) {
-                    applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
-                  }
+              if (changed) {
+                e.preventDefault()
+                setFocusedCell({ dateIdx, slotIdx })
+                if (e.shiftKey) {
+                  setDragEnd(slotKey(dates[dateIdx], slots[slotIdx]))
+                } else if (dragging) {
                   setDragging(false)
                   setDragStart(null)
                   setDragEnd(null)
                 }
               }
+            }
+            : undefined
+        }
+        onKeyUp={
+          interactive && currentParticipant
+            ? (e) => {
+              if (e.key === 'Shift' && dragging) {
+                if (dragStart && dragEnd) {
+                  applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
+                }
+                setDragging(false)
+                setDragStart(null)
+                setDragEnd(null)
+              }
+            }
             : undefined
         }
         tabIndex={interactive && currentParticipant ? 0 : undefined}
         onFocus={
           interactive && currentParticipant
             ? () => {
-                if (!focusedCell) setFocusedCell({ dateIdx: 0, slotIdx: 0 })
-              }
+              if (!focusedCell) setFocusedCell({ dateIdx: 0, slotIdx: 0 })
+            }
             : undefined
         }
         onBlur={
           interactive
             ? () => {
-                setFocusedCell(null)
-                if (dragging) {
-                  setDragging(false)
-                  setDragStart(null)
-                  setDragEnd(null)
-                }
+              setFocusedCell(null)
+              if (dragging) {
+                setDragging(false)
+                setDragStart(null)
+                setDragEnd(null)
               }
+            }
             : undefined
         }
         sx={{
@@ -639,18 +683,18 @@ export default function EventPage() {
                     onMouseDown={
                       interactive
                         ? () => {
-                            if (!currentParticipant) return
-                            setDragAdding(!selected.has(key))
-                            setDragStart(key)
-                            setDragging(true)
-                          }
+                          if (!currentParticipant) return
+                          setDragAdding(!selected.has(key))
+                          setDragStart(key)
+                          setDragging(true)
+                        }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                            if (dragging) setDragEnd(key)
-                          }
+                          if (dragging) setDragEnd(key)
+                        }
                         : undefined
                     }
                     sx={{
@@ -662,12 +706,12 @@ export default function EventPage() {
                         : interactive &&
                           focusedCell?.dateIdx === dIdx &&
                           focusedCell?.slotIdx === sIdx
-                        ? `2px solid ${theme.palette.primary.main}`
-                        : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                          ? `2px solid ${theme.palette.primary.main}`
+                          : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       zIndex:
                         interactive &&
-                        focusedCell?.dateIdx === dIdx &&
-                        focusedCell?.slotIdx === sIdx
+                          focusedCell?.dateIdx === dIdx &&
+                          focusedCell?.slotIdx === sIdx
                           ? 1
                           : 0,
                       position: 'relative',
@@ -1131,6 +1175,61 @@ export default function EventPage() {
               )}
             </Paper>
 
+            {currentParticipant && (
+              <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, mb: 2 }}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1.5}>
+                  <AutoAwesomeIcon sx={{ color: '#a855f7' }} />
+                  <Typography fontWeight={700}>Magic Selection ✨</Typography>
+                </Stack>
+                <Typography variant="caption" color="text.secondary" mb={2} display="block">
+                  Tell AI your schedule and we'll highlight the slots!
+                  <br />
+                  e.g. Free Monday all day...On Saturday Date 9th from 10 to 12...
+                </Typography>
+                <TextField
+                  size="small"
+                  placeholder="e.g. Free Monday all day..."
+                  multiline
+                  rows={2}
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  fullWidth
+                  sx={{ mb: 1.5 }}
+                  disabled={aiLoading}
+                />
+
+                {aiError && (
+                  <Typography variant="caption" color="error" display="block" mb={1}>
+                    {aiError}
+                  </Typography>
+                )}
+
+                {aiSuccess && (
+                  <Typography variant="caption" color="success.main" display="block" mb={1}>
+                    {aiSuccess}
+                  </Typography>
+                )}
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="small"
+                  onClick={handleMagicSelect}
+                  disabled={!aiPrompt.trim() || aiLoading}
+                  sx={{
+                    textTransform: 'none',
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #4f46e5, #9333ea)',
+                    },
+                  }}
+                >
+                  {aiLoading ? '✨ Analyzing...' : 'Magic Select'}
+                </Button>
+              </Paper>
+            )}
+
             <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3 }}>
               <Stack direction="row" spacing={1} alignItems="center" mb={4}>
                 <GroupIcon sx={{ color: theme.palette.secondary.main }} />
@@ -1240,9 +1339,9 @@ export default function EventPage() {
                         border:
                           i === 0
                             ? `1px solid ${alpha(
-                                theme.palette.secondary.main,
-                                0.5,
-                              )}`
+                              theme.palette.secondary.main,
+                              0.5,
+                            )}`
                             : '1px solid transparent',
                       }}
                     >
