@@ -154,18 +154,32 @@ export default function EventPage() {
         return
       }
 
-      // re-fetch event to update info card and grid
-      const data = await fetch(`${API}/events/${eventID}`).then((r) => r.json())
+      // re-fetch event
+      const data = await fetch(`${API}/events/${eventID}`, {
+        cache: 'no-store',
+      }).then((r) => r.json())
       const updatedEvent = data.event ?? data
       setEvent(updatedEvent)
 
-      // remove timeslots outside new time range
-      const newStart = new Date(updatedEvent.start_time)
-      const newEnd = new Date(updatedEvent.end_time)
+      // get new date boundaries — date only, no time
+      const newStartDate = new Date(updatedEvent.start_time)
+      const newEndDate = new Date(updatedEvent.end_time)
+      const newStartDay = new Date(
+        newStartDate.getFullYear(),
+        newStartDate.getMonth(),
+        newStartDate.getDate(),
+      )
+      const newEndDay = new Date(
+        newEndDate.getFullYear(),
+        newEndDate.getMonth(),
+        newEndDate.getDate(),
+      )
 
+      // only delete timeslots whose DATE is completely outside the new date range
       const invalidTimeslots = timeslots.filter((t) => {
-        const slotTime = new Date(t.start_time)
-        return slotTime < newStart || slotTime > newEnd
+        const d = new Date(t.start_time)
+        const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+        return day < newStartDay || day > newEndDay
       })
 
       for (const t of invalidTimeslots) {
@@ -174,10 +188,12 @@ export default function EventPage() {
         }
       }
 
+      // update state — keep timeslots inside date range only
       setTimeslots((prev) =>
         prev.filter((t) => {
-          const slotTime = new Date(t.start_time)
-          return slotTime >= newStart && slotTime <= newEnd
+          const d = new Date(t.start_time)
+          const day = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+          return day >= newStartDay && day <= newEndDay
         }),
       )
 
@@ -194,8 +210,18 @@ export default function EventPage() {
   const slots: string[] = []
 
   if (event) {
-    const cur = new Date(event.start_time)
-    const last = new Date(event.end_time)
+    const startDate = new Date(event.start_time)
+    const endDate = new Date(event.end_time)
+    const cur = new Date(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+    )
+    const last = new Date(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+    )
 
     while (cur <= last) {
       const pad = (n: number) => String(n).padStart(2, '0')
@@ -205,10 +231,9 @@ export default function EventPage() {
       cur.setDate(cur.getDate() + 1)
     }
 
-    const startH = new Date(event.start_time).getHours()
-    const endH = new Date(event.end_time).getHours()
+    const startH = startDate.getHours()
+    const endH = endDate.getHours()
 
-    // ← guard: if startH >= endH, times are bad or cross midnight
     if (startH < endH) {
       for (let h = startH; h < endH; h++) {
         slots.push(`${String(h).padStart(2, '0')}:00`)
