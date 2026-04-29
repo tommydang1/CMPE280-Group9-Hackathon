@@ -12,7 +12,7 @@ This website will allow users to create an event timeframe or a weekly timeframe
 React is an industry standard used in many startups and web applications.
 * The community support for libraries such as Mui makes designing accessibility easier 
 * For the backend, we used a relational database
-* We decided that authentication is not necessary for the scope of this project
+* Authentication is optional. Passwords will only be created when creating a new participant and cannot be added to an existing participant.
 
 
 ## How to run the project
