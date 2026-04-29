@@ -24,7 +24,8 @@ import GroupIcon from '@mui/icons-material/Group'
 import { useTheme, alpha } from '@mui/material/styles'
 import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
-const API = 'http://localhost:5001/api'
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
 interface Event {
   id: number
@@ -194,26 +195,36 @@ export default function EventPage() {
       .map((t) => t.start_time.slice(0, 16)),
   )
 
+  const fetchEventData = async () => {
+    if (!eventID) return
+
+    try {
+      const [eventRes, participantsRes, timeslotsRes] = await Promise.all([
+        fetch(`${API}/events/${eventID}`, { cache: 'no-store' }),
+        fetch(`${API}/participants/event/${eventID}`, { cache: 'no-store' }),
+        fetch(`${API}/timeslots/event/${eventID}`, { cache: 'no-store' }),
+      ])
+
+      const [eventJson, participantsJson, timeslotsJson] = await Promise.all([
+        eventRes.json(),
+        participantsRes.json(),
+        timeslotsRes.json(),
+      ])
+
+      setEvent(eventJson.event ?? eventJson)
+      setParticipants(participantsJson.participants ?? participantsJson)
+      setTimeslots(timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson)
+    } catch (error) {
+      console.error('Failed to refresh event data:', error)
+    }
+  }
+
   useEffect(() => {
     if (!eventID) return
 
-    const fetchAll = () => {
-      fetch(`${API}/events/${eventID}`, { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((data) => setEvent(data.event ?? data))
-
-      fetch(`${API}/participants/event/${eventID}`, { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((data) => setParticipants(data.participants ?? data))
-
-      fetch(`${API}/timeslots/event/${eventID}`, { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((data) => setTimeslots(data.slots ?? data.timeslots ?? data))
-    }
-
-    fetchAll()
-    const interval = setInterval(fetchAll, 10000)
-    return () => clearInterval(interval)
+    fetchEventData()
+    const intervalId = window.setInterval(fetchEventData, 5000)
+    return () => window.clearInterval(intervalId)
   }, [eventID])
 
   const slotKey = (date: string, slot: string) => `${date}T${slot}`
