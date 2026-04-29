@@ -101,7 +101,10 @@ export default function EventPage() {
   const [dragStart, setDragStart] = useState<string | null>(null)
   const [dragEnd, setDragEnd] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [focusedCell, setFocusedCell] = useState<{ dateIdx: number, slotIdx: number } | null>(null)
+  const [focusedCell, setFocusedCell] = useState<{
+    dateIdx: number
+    slotIdx: number
+  } | null>(null)
   // ── add these new state variables near your other useState declarations ──
   const [editMode, setEditMode] = useState(false)
   const [editTitle, setEditTitle] = useState('')
@@ -145,13 +148,39 @@ export default function EventPage() {
           end_time: new Date(editEnd).toISOString(),
         }),
       })
+
       if (!res.ok) {
         setEditMsg('Failed to save.')
         return
       }
+
       // re-fetch event to update info card and grid
       const data = await fetch(`${API}/events/${eventID}`).then((r) => r.json())
-      setEvent(data.event ?? data)
+      const updatedEvent = data.event ?? data
+      setEvent(updatedEvent)
+
+      // remove timeslots outside new time range
+      const newStart = new Date(updatedEvent.start_time)
+      const newEnd = new Date(updatedEvent.end_time)
+
+      const invalidTimeslots = timeslots.filter((t) => {
+        const slotTime = new Date(t.start_time)
+        return slotTime < newStart || slotTime > newEnd
+      })
+
+      for (const t of invalidTimeslots) {
+        if (t.id > 0) {
+          await fetch(`${API}/timeslots/${t.id}`, { method: 'DELETE' })
+        }
+      }
+
+      setTimeslots((prev) =>
+        prev.filter((t) => {
+          const slotTime = new Date(t.start_time)
+          return slotTime >= newStart && slotTime <= newEnd
+        }),
+      )
+
       setEditMode(false)
       setEditMsg('')
     } catch {
@@ -215,7 +244,9 @@ export default function EventPage() {
 
       setEvent(eventJson.event ?? eventJson)
       setParticipants(participantsJson.participants ?? participantsJson)
-      setTimeslots(timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson)
+      setTimeslots(
+        timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson,
+      )
     } catch (error) {
       console.error('Failed to refresh event data:', error)
     }
@@ -274,7 +305,7 @@ export default function EventPage() {
       body: JSON.stringify({
         username: tempName.trim(),
         event_id: event.id,
-        password: tempPassword || null
+        password: tempPassword || null,
       }),
     })
     const verifyJson = await verifyRes.json()
@@ -357,8 +388,8 @@ export default function EventPage() {
             setTimeslots((prev) =>
               prev.map((t) =>
                 t.start_time === `${s}:00Z` &&
-                  t.participant_id === currentParticipant.id &&
-                  t.id < 0
+                t.participant_id === currentParticipant.id &&
+                t.id < 0
                   ? { ...realSlot, username: currentParticipant.username }
                   : t,
               ),
@@ -430,91 +461,120 @@ export default function EventPage() {
   const renderGrid = (interactive: boolean) => (
     <Box sx={{ overflowX: 'auto' }}>
       <Box
-        onKeyDown={interactive && currentParticipant ? (e) => {
-          if (!focusedCell) {
-            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-              setFocusedCell({ dateIdx: 0, slotIdx: 0 });
-              e.preventDefault();
-            }
-            return;
-          }
-          let { dateIdx, slotIdx } = focusedCell;
-          let changed = false;
+        onKeyDown={
+          interactive && currentParticipant
+            ? (e) => {
+                if (!focusedCell) {
+                  if (
+                    [
+                      'ArrowUp',
+                      'ArrowDown',
+                      'ArrowLeft',
+                      'ArrowRight',
+                    ].includes(e.key)
+                  ) {
+                    setFocusedCell({ dateIdx: 0, slotIdx: 0 })
+                    e.preventDefault()
+                  }
+                  return
+                }
+                let { dateIdx, slotIdx } = focusedCell
+                let changed = false
 
-          if (e.shiftKey && !dragging && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-            const currentSlotKey = slotKey(dates[dateIdx], slots[slotIdx]);
-            setDragStart(currentSlotKey);
-            setDragAdding(!selected.has(currentSlotKey));
-            setDragging(true);
-          }
+                if (
+                  e.shiftKey &&
+                  !dragging &&
+                  ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(
+                    e.key,
+                  )
+                ) {
+                  const currentSlotKey = slotKey(dates[dateIdx], slots[slotIdx])
+                  setDragStart(currentSlotKey)
+                  setDragAdding(!selected.has(currentSlotKey))
+                  setDragging(true)
+                }
 
-          switch (e.key) {
-            case 'ArrowUp':
-              slotIdx = Math.max(0, slotIdx - 1);
-              changed = true;
-              break;
-            case 'ArrowDown':
-              slotIdx = Math.min(slots.length - 1, slotIdx + 1);
-              changed = true;
-              break;
-            case 'ArrowLeft':
-              dateIdx = Math.max(0, dateIdx - 1);
-              changed = true;
-              break;
-            case 'ArrowRight':
-              dateIdx = Math.min(dates.length - 1, dateIdx + 1);
-              changed = true;
-              break;
-            case ' ':
-            case 'Enter':
-              e.preventDefault();
-              if (dragging && dragStart && dragEnd) {
-                applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
-                setDragging(false);
-                setDragStart(null);
-                setDragEnd(null);
-              } else {
-                const key = slotKey(dates[dateIdx], slots[slotIdx]);
-                applySlots([key], !selected.has(key));
+                switch (e.key) {
+                  case 'ArrowUp':
+                    slotIdx = Math.max(0, slotIdx - 1)
+                    changed = true
+                    break
+                  case 'ArrowDown':
+                    slotIdx = Math.min(slots.length - 1, slotIdx + 1)
+                    changed = true
+                    break
+                  case 'ArrowLeft':
+                    dateIdx = Math.max(0, dateIdx - 1)
+                    changed = true
+                    break
+                  case 'ArrowRight':
+                    dateIdx = Math.min(dates.length - 1, dateIdx + 1)
+                    changed = true
+                    break
+                  case ' ':
+                  case 'Enter':
+                    e.preventDefault()
+                    if (dragging && dragStart && dragEnd) {
+                      applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
+                      setDragging(false)
+                      setDragStart(null)
+                      setDragEnd(null)
+                    } else {
+                      const key = slotKey(dates[dateIdx], slots[slotIdx])
+                      applySlots([key], !selected.has(key))
+                    }
+                    return
+                  default:
+                    return
+                }
+                if (changed) {
+                  e.preventDefault()
+                  setFocusedCell({ dateIdx, slotIdx })
+                  if (e.shiftKey) {
+                    setDragEnd(slotKey(dates[dateIdx], slots[slotIdx]))
+                  } else if (dragging) {
+                    setDragging(false)
+                    setDragStart(null)
+                    setDragEnd(null)
+                  }
+                }
               }
-              return;
-            default:
-              return;
-          }
-          if (changed) {
-            e.preventDefault();
-            setFocusedCell({ dateIdx, slotIdx });
-            if (e.shiftKey) {
-              setDragEnd(slotKey(dates[dateIdx], slots[slotIdx]));
-            } else if (dragging) {
-              setDragging(false);
-              setDragStart(null);
-              setDragEnd(null);
-            }
-          }
-        } : undefined}
-        onKeyUp={interactive && currentParticipant ? (e) => {
-          if (e.key === 'Shift' && dragging) {
-            if (dragStart && dragEnd) {
-              applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding);
-            }
-            setDragging(false);
-            setDragStart(null);
-            setDragEnd(null);
-          }
-        } : undefined}
+            : undefined
+        }
+        onKeyUp={
+          interactive && currentParticipant
+            ? (e) => {
+                if (e.key === 'Shift' && dragging) {
+                  if (dragStart && dragEnd) {
+                    applySlots(getSlotsInRect(dragStart, dragEnd), dragAdding)
+                  }
+                  setDragging(false)
+                  setDragStart(null)
+                  setDragEnd(null)
+                }
+              }
+            : undefined
+        }
         tabIndex={interactive && currentParticipant ? 0 : undefined}
-        onFocus={interactive && currentParticipant ? () => {
-          if (!focusedCell) setFocusedCell({ dateIdx: 0, slotIdx: 0 });
-        } : undefined}
-        onBlur={interactive ? () => {
-          setFocusedCell(null);
-          if (dragging) {
-            setDragging(false);
-            setDragStart(null);
-            setDragEnd(null);
-          }
-        } : undefined}
+        onFocus={
+          interactive && currentParticipant
+            ? () => {
+                if (!focusedCell) setFocusedCell({ dateIdx: 0, slotIdx: 0 })
+              }
+            : undefined
+        }
+        onBlur={
+          interactive
+            ? () => {
+                setFocusedCell(null)
+                if (dragging) {
+                  setDragging(false)
+                  setDragStart(null)
+                  setDragEnd(null)
+                }
+              }
+            : undefined
+        }
         sx={{
           display: 'grid',
           gridTemplateColumns: `64px repeat(${dates.length}, minmax(80px, 1fr))`,
@@ -572,23 +632,25 @@ export default function EventPage() {
                 >
                   <Box
                     role="gridcell"
-                    aria-label={`Time slot: ${new Date(d + 'T00:00:00').toLocaleDateString()}, ${s}. ${label}`}
+                    aria-label={`Time slot: ${new Date(
+                      d + 'T00:00:00',
+                    ).toLocaleDateString()}, ${s}. ${label}`}
                     aria-selected={selected.has(key)}
                     onMouseDown={
                       interactive
                         ? () => {
-                          if (!currentParticipant) return
-                          setDragAdding(!selected.has(key))
-                          setDragStart(key)
-                          setDragging(true)
-                        }
+                            if (!currentParticipant) return
+                            setDragAdding(!selected.has(key))
+                            setDragStart(key)
+                            setDragging(true)
+                          }
                         : undefined
                     }
                     onMouseEnter={
                       interactive
                         ? () => {
-                          if (dragging) setDragEnd(key)
-                        }
+                            if (dragging) setDragEnd(key)
+                          }
                         : undefined
                     }
                     sx={{
@@ -597,10 +659,17 @@ export default function EventPage() {
                       bgcolor: bgColor,
                       border: inPreview
                         ? '2px solid #14B8A6'
-                        : interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx
-                          ? `2px solid ${theme.palette.primary.main}`
-                          : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                      zIndex: interactive && focusedCell?.dateIdx === dIdx && focusedCell?.slotIdx === sIdx ? 1 : 0,
+                        : interactive &&
+                          focusedCell?.dateIdx === dIdx &&
+                          focusedCell?.slotIdx === sIdx
+                        ? `2px solid ${theme.palette.primary.main}`
+                        : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                      zIndex:
+                        interactive &&
+                        focusedCell?.dateIdx === dIdx &&
+                        focusedCell?.slotIdx === sIdx
+                          ? 1
+                          : 0,
                       position: 'relative',
                       boxSizing: 'border-box',
                       cursor:
@@ -705,12 +774,12 @@ export default function EventPage() {
             }}
           >
             <Typography variant="h6" fontWeight={600} mb={1}>
-              {passwordRequired ? "Password required" : "What's your name?"}
+              {passwordRequired ? 'Password required' : "What's your name?"}
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
               {passwordRequired
-                ? "This participant requires a password to join"
-                : "Enter your name to mark your availability"}
+                ? 'This participant requires a password to join'
+                : 'Enter your name to mark your availability'}
             </Typography>
             <Stack spacing={2}>
               <TextField
@@ -1045,7 +1114,12 @@ export default function EventPage() {
                     variant="text"
                     size="small"
                     onClick={handleLogout}
-                    sx={{ textTransform: 'none', borderRadius: 2, mt: 1, color: 'error.main' }}
+                    sx={{
+                      textTransform: 'none',
+                      borderRadius: 2,
+                      mt: 1,
+                      color: 'error.main',
+                    }}
                   >
                     Log Out
                   </Button>
@@ -1166,9 +1240,9 @@ export default function EventPage() {
                         border:
                           i === 0
                             ? `1px solid ${alpha(
-                              theme.palette.secondary.main,
-                              0.5,
-                            )}`
+                                theme.palette.secondary.main,
+                                0.5,
+                              )}`
                             : '1px solid transparent',
                       }}
                     >
