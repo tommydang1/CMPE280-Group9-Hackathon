@@ -1,4 +1,6 @@
 // src/utils/colorUtils.ts
+import type { Theme } from '@mui/material/styles'
+
 export type ColorBlindMode = false | 'protanopia' | 'deuteranopia' | 'tritanopia'
 
 export const getCellColor = (
@@ -6,70 +8,49 @@ export const getCellColor = (
     selected: Set<string>,
     slotCount: Record<string, number>,
     maxCount: number,
-    colorBlind: ColorBlindMode,
-    isDark: boolean
+    theme: Theme,
 ) => {
     const mine = selected.has(key)
     const count = slotCount[key] ?? 0
+    const isDark = theme.palette.mode === 'dark'
+    const primaryColor = theme.palette.primary.main
+    const secondaryColor = theme.palette.secondary.main
 
     const overlap = mine && count > 1
 
-    switch (colorBlind) {
-        case 'protanopia':
-            if (overlap) return '#c7bc24'
-            if (mine) return '#1976D2'
-            // darker pink for better visibility
-            if (count > 0) return `rgba(49,130,206,${0.18 + (count / maxCount) * 0.4})`
-            // use default dark background color to stay consistent with default mode
-            return isDark ? '#26272d' : '#f1f5f9'
-
-        case 'deuteranopia':
-            if (overlap) return '#D55E00'
-            if (mine) return '#0072B2'
-            // blue-based for intensity, avoids red-green contrast issues
-            if (count > 0) return `rgba(0,120,200,${0.18 + (count / maxCount) * 0.4})`
-            return isDark ? '#26272d' : '#f1f5f9'
-
-        case 'tritanopia':
-            if (overlap) return '#E91E63'
-            if (mine) return '#8E24AA'
-            // darker orange for better visibility
-            if (count > 0) return `rgba(200,110,0,${0.18 + (count / maxCount) * 0.4})`
-            return isDark ? '#26272d' : '#f1f5f9'
-
-        default:
-            if (overlap) return '#6366f1'
-            if (mine) return '#fb923c'
-            if (count > 0) return `rgba(49,130,206,${0.18 + (count / maxCount) * 0.4})`
-            // slightly lighter dark background for improved visibility in dark mode
-            return isDark ? '#26272d' : '#f1f5f9'
+    if (overlap) return secondaryColor
+    if (mine) return primaryColor
+    if (count > 0) {
+        const intensity = 0.18 + (count / maxCount) * 0.4
+        // For tritanopia, use neutral gray instead of blue to avoid clashing with purple/yellow
+        if (primaryColor === '#8E24AA' || primaryColor === '#c084fc') {
+            // Tritanopia: use neutral gray intensity
+            return `rgba(${isDark ? '80,80,80' : '180,180,180'}, ${intensity})`
+        }
+        // Other modes: use primary color with intensity
+        return `rgba(${primaryColor === '#2563eb' ? '37,99,235' : '96,165,250'}, ${intensity})`
     }
+    return isDark ? '#26272d' : '#f1f5f9'
 }
 
 export const getGroupCellColor = (
     key: string,
     slotCount: Record<string, number>,
     maxCount: number,
-    colorBlind: ColorBlindMode,
-    isDark: boolean
+    theme: Theme,
 ) => {
     const count = slotCount[key] ?? 0
-    switch (colorBlind) {
-        case 'protanopia':
-            if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            // darker pink gradient
-            return `rgba(49,130,206, ${0.15 + (count / maxCount) * 0.85})`; // darker pink gradient
+    const isDark = theme.palette.mode === 'dark'
+    const primaryColor = theme.palette.primary.main
 
-        case 'deuteranopia':
-            if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5';
-            return `rgba(0, 120, 200, ${0.18 + (count / maxCount) * 0.5})`; // stronger blue gradient
-
-        case 'tritanopia':
-            if (count === 0) return isDark ? '#26272d' : '#f0f2f5';
-            return `rgba(200, 110, 0, ${0.18 + (count / maxCount) * 0.5})`; // stronger darker orange gradient
-
-        default:
-            if (count === 0) return isDark ? '#26272d' : '#f0f2f5';
-            return `rgba(49, 130, 206, ${0.18 + (count / maxCount) * 0.5})`; // stronger default blue gradient
+    if (count === 0) return isDark ? '#1c1c1e' : '#f0f2f5'
+    
+    const intensity = 0.18 + (count / maxCount) * 0.5
+    // For tritanopia, use neutral gray instead of blue
+    if (primaryColor === '#8E24AA' || primaryColor === '#c084fc') {
+        // Tritanopia: use neutral gray gradient
+        return `rgba(${isDark ? '100,100,100' : '200,200,200'}, ${intensity})`
     }
+    // Other modes: use primary color with intensity
+    return `rgba(${primaryColor === '#2563eb' ? '37,99,235' : '96,165,250'}, ${intensity})`
 }

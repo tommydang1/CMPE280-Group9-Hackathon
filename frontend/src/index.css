@@ -17,11 +17,18 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  --app-background: #ffffff;
+  --app-paper: #ffffff;
+  --app-text-primary: #111827;
+  --app-text-secondary: #475569;
+  --app-primary: #2563eb;
+  --app-secondary: #9333ea;
+
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--app-text-primary);
+  background: var(--app-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,6 +37,12 @@
   @media (max-width: 1024px) {
     font-size: 16px;
   }
+}
+
+body {
+  margin: 0;
+  background: var(--app-background);
+  color: var(--app-text-primary);
 }
 
 @media (prefers-color-scheme: dark) {

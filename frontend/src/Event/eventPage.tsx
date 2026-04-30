@@ -3,19 +3,17 @@ import { useEffect, useState, Fragment } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import EditIcon from '@mui/icons-material/Edit'
 import IconButton from '@mui/material/IconButton'
-import {
-  Avatar,
-  Box,
-  Button,
-  Container,
-  Divider,
-  Paper,
-  Snackbar,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material'
+import Avatar from '@mui/material/Avatar';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Container from '@mui/material/Container';
+import Divider from '@mui/material/Divider';
+import Paper from '@mui/material/Paper';
+import Snackbar from '@mui/material/Snackbar';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday'
 import AccessTimeIcon from '@mui/icons-material/AccessTime'
@@ -586,10 +584,10 @@ export default function EventPage() {
 
   // ====== THEME-BASED COLORS ======
   const cellColor = (key: string) =>
-    getCellColor(key, selected, slotCount, maxCount, colorBlind, isDark)
+    getCellColor(key, selected, slotCount, maxCount, theme)
 
   const groupCellColor = (key: string) =>
-    getGroupCellColor(key, slotCount, maxCount, colorBlind, isDark)
+    getGroupCellColor(key, slotCount, maxCount, theme)
 
   const whoIsAvailable = (key: string) =>
     timeslots

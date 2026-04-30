@@ -13,6 +13,7 @@ app.use(
     origin: (origin, callback) => {
       const allowed = [
         "http://localhost:5173",
+        "http://localhost:4173",
         "https://cmpe-280-group9-hackathon-hegm.vercel.app",
       ];
       // Allow all vercel preview URLs
