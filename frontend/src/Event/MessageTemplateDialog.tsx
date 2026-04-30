@@ -70,6 +70,7 @@ export default function MessageTemplateDialog({
 
       <DialogContent sx={{ pt: 3 }}>
         <Stack spacing={3}>
+          <br></br>
           <TextField
             fullWidth
             label="Subject"

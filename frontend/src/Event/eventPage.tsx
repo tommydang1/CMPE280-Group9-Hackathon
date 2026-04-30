@@ -21,7 +21,6 @@ import ShareIcon from '@mui/icons-material/Share'
 import GroupIcon from '@mui/icons-material/Group'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { useTheme, alpha } from '@mui/material/styles'
-import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
 import MessageTemplateDialog from './MessageTemplateDialog'
 
@@ -74,8 +73,6 @@ export default function EventPage() {
   const theme = useTheme()
   const { mode } = theme.palette
   const isDark = mode === 'dark'
-
-  const { colorBlind } = useColorMode()
 
   const [event, setEvent] = useState<Event | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -306,7 +303,7 @@ export default function EventPage() {
     if (!eventID) return
 
     fetchEventData()
-    const intervalId = window.setInterval(fetchEventData, 10000) // Refresh every 10 seconds
+    const intervalId = window.setInterval(fetchEventData, 5000) // Refresh every 5 seconds
     return () => window.clearInterval(intervalId)
   }, [eventID])
 
