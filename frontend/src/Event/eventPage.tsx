@@ -25,6 +25,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { useTheme, alpha } from '@mui/material/styles'
 import { useColorMode } from '../ThemeContext'
 import { getCellColor, getGroupCellColor } from '../utils/colorUtils'
+import MessageTemplateDialog from './MessageTemplateDialog'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
@@ -119,6 +120,22 @@ export default function EventPage() {
   const [editEnd, setEditEnd] = useState('')
   const [editMsg, setEditMsg] = useState('')
   const [editLoading, setEditLoading] = useState(false)
+  // ── AI Summary State ──
+  const [aiSummaryQuery, setAiSummaryQuery] = useState('')
+  const [aiSummaryLoading, setAiSummaryLoading] = useState(false)
+  const [aiSummaryData, setAiSummaryData] = useState<{
+    recommendations: Array<{
+      timeSlot: string
+      members: string[]
+      summary: string
+    }>
+    inviteMessage: string
+  }>({ recommendations: [], inviteMessage: '' })
+  // ── Prioritize local changes ──
+  const [lastLocalChange, setLastLocalChange] = useState(0)
+  // ── Message Template State ──
+  const [templateOpen, setTemplateOpen] = useState(false)
+  const [templateMessage, setTemplateMessage] = useState('')
 
   const toLocalFormat = (isoString: string) => {
     if (!isoString) return ''
@@ -276,9 +293,12 @@ export default function EventPage() {
 
       setEvent(eventJson.event ?? eventJson)
       setParticipants(participantsJson.participants ?? participantsJson)
-      setTimeslots(
-        timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson,
-      )
+      // Only update timeslots if no recent local change (prioritize local)
+      if (Date.now() - lastLocalChange > 2000) {
+        setTimeslots(
+          timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson,
+        )
+      }
     } catch (error) {
       console.error('Failed to refresh event data:', error)
     }
@@ -288,7 +308,7 @@ export default function EventPage() {
     if (!eventID) return
 
     fetchEventData()
-    const intervalId = window.setInterval(fetchEventData, 5000)
+    const intervalId = window.setInterval(fetchEventData, 10000) // Refresh every 10 seconds
     return () => window.clearInterval(intervalId)
   }, [eventID])
 
@@ -390,6 +410,8 @@ export default function EventPage() {
 
   const applySlots = async (slotsToApply: string[], adding: boolean) => {
     if (!currentParticipant || !event) return
+
+    setLastLocalChange(Date.now()) // Prioritize local changes
 
     if (adding) {
       const newSlotKeys = slotsToApply.filter((s) => !selected.has(s))
@@ -493,6 +515,72 @@ export default function EventPage() {
       setAiError("Something went wrong processing your request.");
     } finally {
       setAiLoading(false);
+    }
+  }
+
+  const parseTimeSlot = (timeSlot: string) => {
+    // Parse "2026-04-29T14:00 (2:00 PM)" into date and time
+    const parts = timeSlot.split(' (');
+    const dateTimePart = parts[0]; // "2026-04-29T14:00"
+    const time12hr = parts[1]?.replace(')', '') || ''; // "2:00 PM"
+    
+    const date = new Date(dateTimePart + ':00Z');
+    const readableDate = date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    return { readableDate, time12hr };
+  };
+
+  const handleOpenEmailTemplate = (inviteMessage: string) => {
+    setTemplateMessage(inviteMessage)
+    setTemplateOpen(true)
+  }
+
+  const handleCopyTemplate = (subject: string, body: string) => {
+    navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`)
+    setCopied(true)
+  }
+
+  const handleAiSummary = async () => {
+    if (!aiSummaryQuery.trim() || !event) return;
+    console.log('Calling AI summary with query:', aiSummaryQuery);
+    console.log('API URL:', API);
+    setAiSummaryLoading(true);
+    setAiSummaryData({ recommendations: [], inviteMessage: '' });
+
+    try {
+      console.log('Sending request to:', `${API}/ai/find-best-availability`);
+      const res = await fetch(`${API}/ai/find-best-availability`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: aiSummaryQuery,
+          participants: participants,
+          timeslots: timeslots,
+          dates: dates,
+          slots: slots
+        })
+      });
+      console.log('Response status:', res.status);
+      if (!res.ok) throw new Error("Failed to get summary");
+
+      const data = await res.json();
+      console.log('Received data:', data);
+      if (data.error) throw new Error(data.error);
+
+      setAiSummaryData({
+        recommendations: data.recommendations || [],
+        inviteMessage: data.inviteMessage || ''
+      });
+    } catch (err) {
+      console.error("AI Summary Error:", err);
+      setAiSummaryData({ recommendations: [], inviteMessage: "Something went wrong generating the summary." });
+    } finally {
+      setAiSummaryLoading(false);
     }
   }
 
@@ -1111,6 +1199,78 @@ export default function EventPage() {
                 {renderGrid(false)}
 
                 <Divider />
+
+                <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, mt: 2 }}>
+                  <Typography fontWeight={700} mb={2}>
+                    AI Summary
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TextField
+                    size="small"
+                    placeholder="e.g. Find the best time when everyone is available"
+                    value={aiSummaryQuery}
+                    onChange={(e) => setAiSummaryQuery(e.target.value)}
+                    fullWidth
+                    sx={{ mb: 1.5 }}
+                    disabled={aiSummaryLoading}
+                  />
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="small"
+                    onClick={handleAiSummary}
+                    disabled={!aiSummaryQuery.trim() || aiSummaryLoading}
+                    sx={{
+                      textTransform: 'none',
+                      borderRadius: 2,
+                      background: 'linear-gradient(135deg, #6366f1, #a855f7)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #4f46e5, #9333ea)',
+                      },
+                      mb: 2,
+                    }}
+                  >
+                    {aiSummaryLoading ? 'Analyzing...' : 'Get AI Summary'}
+                  </Button>
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+                    {aiSummaryData.recommendations.length === 0 ? aiSummaryData.inviteMessage || 'Enter a query above to get an AI-powered summary of the best availability.' : ''}
+                  </Typography>
+                  {aiSummaryData.recommendations.length > 0 && (
+                    <Stack spacing={2}>
+                      {aiSummaryData.recommendations.map((rec, index) => {
+                        const { readableDate, time12hr } = parseTimeSlot(rec.timeSlot);
+                        return (
+                          <Paper key={index} elevation={1} sx={{ p: 2, borderRadius: 2 }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1.5}>
+                              <Box>
+                                <Typography variant="body2" fontWeight={600} color="text.secondary">
+                                  {readableDate}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
+                                  {time12hr}
+                                </Typography>
+                              </Box>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => handleOpenEmailTemplate(aiSummaryData.inviteMessage)}
+                                sx={{ textTransform: 'none', borderRadius: 1 }}
+                              >
+                                Email Template
+                              </Button>
+                            </Stack>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                              <strong>Members:</strong> {rec.members.join(', ')}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                              {rec.summary}
+                            </Typography>
+                          </Paper>
+                        );
+                      })}
+                    </Stack>
+                  )}
+                </Paper>
               </Stack>
             </Paper>
           </Box>
@@ -1422,11 +1582,19 @@ export default function EventPage() {
         </Stack>
       </Container>
 
+      {/* Message Template Dialog */}
+      <MessageTemplateDialog
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        onCopy={handleCopyTemplate}
+        initialMessage={templateMessage}
+      />
+
       <Snackbar
         open={copied}
         autoHideDuration={2000}
         onClose={() => setCopied(false)}
-        message="Link copied!"
+        message="Copied!"
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
