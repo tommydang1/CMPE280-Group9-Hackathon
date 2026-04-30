@@ -32,3 +32,12 @@ LinkUp is built with full keyboard accessibility in mind.
 - **Availability Grid:** Use the `Arrow Keys` (Up/Down/Left/Right) to navigate across time slots. Press `Space` or `Enter` to toggle a single slot. 
 - **Multi-select:** Hold `Shift` + `Arrow Keys` to start a block selection in the grid for quickly marking a wide range of availability.
 - **Accessibility Menu:** Press `Arrow Up/Down` to switch between Dark Mode and Color Blind filters from the accessibility menu.
+
+## 🤖 AI-Powered Features
+LinkUp features a powerful, rubric-compliant Generative AI integration that significantly enhances the scheduling experience. We leverage OpenAI's `gpt-4o-mini` API for highly-accurate natural language processing.
+
+### 1. Magic Selection ✨
+Eliminates the tedium of manually clicking or dragging to select timeslots on the grid.
+- **Natural Language Parsing:** After joining an event, open the *Magic Selection* sidebar and type your schedule naturally (e.g., *"I'm free Wednesday all day and Thursday from 11am to 2pm"*).
+- **Intelligent Engine:** The backend maps your conversational text into an exact mathematical array of timeslots matching the event's specific grid.
+

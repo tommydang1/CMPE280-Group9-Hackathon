@@ -521,7 +521,7 @@ export default function EventPage() {
     const parts = timeSlot.split(' (');
     const dateTimePart = parts[0]; // "2026-04-29T14:00"
     const time12hr = parts[1]?.replace(')', '') || ''; // "2:00 PM"
-    
+
     const date = new Date(dateTimePart + ':00Z');
     const readableDate = date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -529,7 +529,7 @@ export default function EventPage() {
       month: 'long',
       day: 'numeric'
     });
-    
+
     return { readableDate, time12hr };
   };
 
@@ -1367,7 +1367,7 @@ export default function EventPage() {
                 <Typography variant="caption" color="text.secondary" mb={2} display="block">
                   Tell AI your schedule and we'll highlight the slots!
                   <br />
-                  e.g. Free Monday all day...On Saturday Date 9th from 10 to 12...
+                  e.g. Free Monday all day...On Saturday Date 9th from 10am to 1pm...
                 </Typography>
                 <TextField
                   size="small"
