@@ -165,14 +165,19 @@ router.post("/find-best-availability", async (req, res) => {
 CRITICAL INSTRUCTIONS:
 1. Evaluate the query to understand preferences (e.g., "best time for all", "when most are free", "avoid certain times").
 2. Analyze the availability data: list of participants and their selected timeslots.
-3. Suggest the top 3-5 best slots that match the query, prioritizing slots with highest overlap or relevance.
+3. Suggest the top 5 best slots that match the query, prioritizing slots with highest overlap or relevance.
 4. For each recommended slot, provide:
    - "timeSlot": The slot in "YYYY-MM-DDTHH:MM (12hr format)" e.g., "2026-04-29T14:00 (2:00 PM)"
    - "members": Array of participant names available at this slot
    - "summary": Brief explanation why this slot was chosen
-5. Generate an "inviteMessage": A friendly, concise message suggesting the best time(s) for the event, e.g., "Let's meet on Wednesday at 2:00 PM when most of us are available!"
-6. Respond ONLY with a valid JSON object containing "recommendations": array of objects with "timeSlot", "members", "summary", and "inviteMessage": string. Use double quotes for all strings and property names. No markdown, no extra text.
-7. Example: {"recommendations": [{"timeSlot": "2026-04-29T14:00 (2:00 PM)", "members": ["Alice", "Bob"], "summary": "High overlap"}], "inviteMessage": "Let's meet at 2 PM!"}`;
+5. Generate an "inviteMessage": A friendly, concise email message for an invite for the best time(s) for the event. Include the specific date and time from the top recommendation."
+6.1. Use conversational and professional email tone. Avoid excessively using names.
+6.2. If no good slots are found, return an empty recommendations array and an inviteMessage suggesting to adjust availability or query. Do NOT fabricate availability or recommend slots that do not meet the criteria. Be honest about the data.
+7. Invite message should be context aware and if given context add it to the message. Do not use 'us' as its a suppose to be an invite. If the meeting is one on one address as individual instead of group. Always use the date and time format specified above in the invite message. Do NOT use relative terms like "tomorrow" or "next week" in the invite message. Always use the specific date.
+8. Add linebreaks between sections to improve readability of the invite message.
+9. Do NOT include any markdown formatting in your response. Do NOT include \`\`\`json or any code blocks. Respond with a raw JSON object only. Use double quotes for all strings and property names.
+10. Respond ONLY with a valid JSON object containing "recommendations": array of objects with "timeSlot", "members", "summary", and "inviteMessage": string. Use double quotes for all strings and property names. No markdown, no extra text.
+11. Example: {"recommendations": [{"timeSlot": "2026-04-29T14:00 (2:00 PM)", "members": ["Alice", "Bob"], "summary": "High overlap"}], "inviteMessage": "Let's meet on Tuesday, April 29, 2026 at 2:00 PM when most of us are available!"}`;
 
     const userMessage = `Query: "${query}"
 Participants: ${JSON.stringify(participantNames)}
