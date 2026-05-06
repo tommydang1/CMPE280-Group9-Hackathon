@@ -289,7 +289,7 @@ export default function EventPage() {
       setEvent(eventJson.event ?? eventJson)
       setParticipants(participantsJson.participants ?? participantsJson)
       // Only update timeslots if no recent local change (prioritize local)
-      if (Date.now() - lastLocalChange > 2000) {
+      if (Date.now() - lastLocalChange > 5000) {
         setTimeslots(
           timeslotsJson.slots ?? timeslotsJson.timeslots ?? timeslotsJson,
         )
@@ -783,11 +783,11 @@ export default function EventPage() {
                   disableHoverListener={!who && !count}
                 >
                   <Box
-                    role="gridcell"
+                    role="button"
                     aria-label={`Time slot: ${new Date(
                       d + 'T00:00:00',
                     ).toLocaleDateString()}, ${s}. ${label}`}
-                    aria-selected={selected.has(key)}
+                    aria-pressed={selected.has(key)}
                     onMouseDown={
                       interactive
                         ? () => {
@@ -851,7 +851,8 @@ export default function EventPage() {
     )
 
   return (
-    <Box
+    
+    <Box component="main"
       sx={{ minHeight: '100vh', bgcolor: 'background.default', pb: 6 }}
       onMouseUp={() => {
         if (dragging) {
@@ -925,7 +926,7 @@ export default function EventPage() {
               textAlign: 'center',
             }}
           >
-            <Typography variant="h6" fontWeight={600} mb={1}>
+            <Typography variant="h6" component="h3" fontWeight={600} mb={1}>
               {passwordRequired ? 'Password required' : "What's your name?"}
             </Typography>
             <Typography variant="body2" color="text.secondary" mb={2}>
@@ -1018,7 +1019,8 @@ export default function EventPage() {
                 // ----- view mode -----
                 <>
                   <Typography
-                    variant="h4"
+                    variant="h3"
+                    component="h1"
                     fontWeight={700}
                     sx={{ color: theme.palette.primary.main }}
                     mb={1}
@@ -1152,7 +1154,7 @@ export default function EventPage() {
                       alignItems="flex-start"
                     >
                       <Box>
-                        <Typography variant="h6" fontWeight={600}>
+                        <Typography variant="h5" component="h2" fontWeight={600} color="text.primary">
                           Select Your Availability
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
@@ -1188,7 +1190,7 @@ export default function EventPage() {
                     <Divider />
                   </>
                 )}
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="h5" component="h2" fontWeight={600}>
                   Group Availability
                 </Typography>
                 {renderGrid(false)}
@@ -1196,7 +1198,7 @@ export default function EventPage() {
                 <Divider />
 
                 <Paper elevation={1} sx={{ p: 2.5, borderRadius: 3, mt: 2 }}>
-                  <Typography fontWeight={700} mb={2}>
+                  <Typography variant="h6" component="h3" fontWeight={700} mb={2}>
                     AI Summary
                   </Typography>
                   <Divider sx={{ mb: 2 }} />

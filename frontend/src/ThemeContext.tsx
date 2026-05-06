@@ -31,57 +31,67 @@ type AccessiblePalette = {
   text: { primary: string; secondary: string };
 };
 
-const accessiblePalettes: Record<'light' | 'dark', Record<'default' | 'protanopia' | 'deuteranopia' | 'tritanopia', AccessiblePalette>> = {
+const accessiblePalettes: Record<
+  'light' | 'dark',
+  Record<'default' | 'protanopia' | 'deuteranopia' | 'tritanopia', AccessiblePalette>
+> = {
   light: {
     default: {
-      primary: { main: '#2563eb', contrastText: '#ffffff' },
-      secondary: { main: '#9333ea', contrastText: '#ffffff' },
+      primary: { main: '#1d4ed8', contrastText: '#ffffff' },
+      secondary: { main: '#7e22ce', contrastText: '#ffffff' },
       background: { default: '#f8fafc', paper: '#ffffff' },
-      text: { primary: '#111827', secondary: '#475569' },
+      text: { primary: '#0f172a', secondary: '#334155' },
     },
+
     protanopia: {
-      primary: { main: '#2563eb', contrastText: '#ffffff' },
-      secondary: { main: '#f9bc3b', contrastText: '#111827' },
+      primary: { main: '#1d4ed8', contrastText: '#ffffff' },
+      secondary: { main: '#ca8a04', contrastText: '#111827' },
       background: { default: '#f8fbff', paper: '#ffffff' },
-      text: { primary: '#111827', secondary: '#475569' },
+      text: { primary: '#0f172a', secondary: '#334155' },
     },
+
     deuteranopia: {
-      primary: { main: '#2563eb', contrastText: '#ffffff' },
-      secondary: { main: '#f27b22', contrastText: '#111827' },
+      primary: { main: '#1d4ed8', contrastText: '#ffffff' },
+      secondary: { main: '#c2410c', contrastText: '#ffffff' },
       background: { default: '#f8fbff', paper: '#ffffff' },
-      text: { primary: '#111827', secondary: '#475569' },
+      text: { primary: '#0f172a', secondary: '#334155' },
     },
+
     tritanopia: {
-      primary: { main: '#8e24aa', contrastText: '#ffffff' },
-      secondary: { main: '#fca311', contrastText: '#111827' },
+      primary: { main: '#7e22ce', contrastText: '#ffffff' },
+      secondary: { main: '#15803d', contrastText: '#ffffff' },
       background: { default: '#f7f7fb', paper: '#ffffff' },
-      text: { primary: '#111827', secondary: '#475569' },
+      text: { primary: '#0f172a', secondary: '#334155' },
     },
   },
+
   dark: {
     default: {
       primary: { main: '#93c5fd', contrastText: '#0f172a' },
-      secondary: { main: '#c4b5fd', contrastText: '#0f172a' },
-      background: { default: '#121826', paper: '#1f2937' },
-      text: { primary: '#e2e8f0', secondary: '#94a3b8' },
-    },
-    protanopia: {
-      primary: { main: '#60a5fa', contrastText: '#0f172a' },
-      secondary: { main: '#facc15', contrastText: '#0f172a' },
+      secondary: { main: '#c084fc', contrastText: '#0f172a' },
       background: { default: '#0f172a', paper: '#1e293b' },
-      text: { primary: '#e2e8f0', secondary: '#94a3b8' },
+      text: { primary: '#f8fafc', secondary: '#cbd5e1' },
     },
+
+    protanopia: {
+      primary: { main: '#93c5fd', contrastText: '#0f172a' },
+      secondary: { main: '#eab308', contrastText: '#111827' },
+      background: { default: '#0f172a', paper: '#1e293b' },
+      text: { primary: '#f8fafc', secondary: '#cbd5e1' },
+    },
+
     deuteranopia: {
-      primary: { main: '#60a5fa', contrastText: '#0f172a' },
-      secondary: { main: '#fb923c', contrastText: '#0f172a' },
-      background: { default: '#0f172a', paper: '#1f2937' },
-      text: { primary: '#e2e8f0', secondary: '#94a3b8' },
+      primary: { main: '#93c5fd', contrastText: '#0f172a' },
+      secondary: { main: '#ea580c', contrastText: '#ffffff' },
+      background: { default: '#0f172a', paper: '#1e293b' },
+      text: { primary: '#f8fafc', secondary: '#cbd5e1' },
     },
+
     tritanopia: {
-      primary: { main: '#c084fc', contrastText: '#0f172a' },
-      secondary: { main: '#fbbf24', contrastText: '#0f172a' },
-      background: { default: '#101827', paper: '#1f2937' },
-      text: { primary: '#e2e8f0', secondary: '#cbd5e1' },
+      primary: { main: '#d8b4fe', contrastText: '#0f172a' },
+      secondary: { main: '#16a34a', contrastText: '#ffffff' },
+      background: { default: '#0f172a', paper: '#1e293b' },
+      text: { primary: '#f8fafc', secondary: '#cbd5e1' },
     },
   },
 };

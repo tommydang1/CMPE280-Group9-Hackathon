@@ -48,8 +48,8 @@ export const getGroupCellColor = (
     const intensity = 0.18 + (count / maxCount) * 0.5
     // For tritanopia, use neutral gray instead of blue
     if (primaryColor === '#8E24AA' || primaryColor === '#c084fc') {
-        // Tritanopia: use neutral gray gradient
-        return `rgba(${isDark ? '100,100,100' : '200,200,200'}, ${intensity})`
+        // Tritanopia: use neutral gray gradientrgba
+        return `rgba(${isDark ? '50, 160, 80' : '50, 160, 80'}, ${intensity})`
     }
     // Other modes: use primary color with intensity
     return `rgba(${primaryColor === '#2563eb' ? '37,99,235' : '96,165,250'}, ${intensity})`
