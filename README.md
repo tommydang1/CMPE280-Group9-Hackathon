@@ -109,3 +109,10 @@ We have documented our detailed design decisions, alternatives comparison, and l
 - Individual Selection & Group Availability Grid.
 - The sidebar automatically ranks the top 5 best times by availability and refreshes every 5 seconds as more people respond.
 - The event creator is the admin — where only they can edit the event name and time frame inline.
+
+### William Nguyen
+- Color Blind and Accessibility Menu
+- Real-time updates for Group Availability Grid.
+- AI Summary feature to schedule meetings with other members.
+- AI Email template to quickly prototype emails/invite messages.
+- Lighthouse and WCAG analysis.
