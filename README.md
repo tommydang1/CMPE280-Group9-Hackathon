@@ -124,3 +124,8 @@ We have documented our detailed design decisions, alternatives comparison, and l
 - Dark mode and UI improvements.
 - Engineering reflection documentation.
 
+### Tommy Dang
+- Set up frontend framework and routing
+- Event page availability grid selector & group availibility grid
+- Username and password authentication
+- Deployed backend and frontend on Vercel
