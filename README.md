@@ -1,4 +1,4 @@
-# CMPE280-Group9-Hackathon
+# LinkUp - A smarter way to schedule.
 
 ## Problem and idea
 
@@ -116,3 +116,11 @@ We have documented our detailed design decisions, alternatives comparison, and l
 - AI Summary feature to schedule meetings with other members.
 - AI Email template to quickly prototype emails/invite messages.
 - Lighthouse and WCAG analysis.
+
+### Urvashi Kohale
+- AI Magic Selection for automatically mapping out availability in the group scheduling grid by typing out natural language input.
+- Implemented full keyboard accessibility for the scheduling grid, supporting efficient navigation and multi-selection.
+- Front page design and UI implementation.
+- Dark mode and UI improvements.
+- Engineering reflection documentation.
+
