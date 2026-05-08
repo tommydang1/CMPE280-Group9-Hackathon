@@ -23,9 +23,9 @@ export const getCellColor = (
     if (count > 0) {
         const intensity = 0.18 + (count / maxCount) * 0.4
         // For tritanopia, use neutral gray instead of blue to avoid clashing with purple/yellow
-        if (primaryColor === '#8E24AA' || primaryColor === '#c084fc') {
+        if (primaryColor === '#7e22ce' || primaryColor === '#d8b4fe') {
             // Tritanopia: use neutral gray intensity
-            return `rgba(${isDark ? '80,80,80' : '180,180,180'}, ${intensity})`
+            return `rgba(${isDark ? '180,180,180' : '50,50,50'}, ${intensity})`
         }
         // Other modes: use primary color with intensity
         return `rgba(${primaryColor === '#2563eb' ? '37,99,235' : '96,165,250'}, ${intensity})`
@@ -47,7 +47,7 @@ export const getGroupCellColor = (
     
     const intensity = 0.18 + (count / maxCount) * 0.5
     // For tritanopia, use neutral gray instead of blue
-    if (primaryColor === '#8E24AA' || primaryColor === '#c084fc') {
+    if (primaryColor === '#7e22ce' || primaryColor === '#d8b4fe') {
         // Tritanopia: use neutral gray gradientrgba
         return `rgba(${isDark ? '50, 160, 80' : '50, 160, 80'}, ${intensity})`
     }
